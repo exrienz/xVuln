@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Local Plate — Fine Dining & Artisan Cuisine</title>
+  <meta name="description" content="The Local Plate — Experience the finest artisan cuisine in the heart of the city. Browse our seasonal menu, place orders, and share your experience." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/assets/style.css" />
+</head>
+<body>
+  <!-- Navigation -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand" onclick="navigate('home'); return false;">
+        <span class="brand-icon">🍽</span>
+        <span class="brand-name">The Local Plate</span>
+      </a>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#" onclick="navigate('home'); return false;">Home</a></li>
+        <li><a href="#" onclick="navigate('menu'); return false;">Menu</a></li>
+        <li><a href="#" onclick="navigate('reviews'); return false;">Reviews</a></li>
+        <li><a href="#" id="nav-orders" onclick="navigate('orders'); return false;" style="display:none">My Orders</a></li>
+        <li><a href="#" id="nav-admin" onclick="navigate('admin'); return false;" style="display:none">Admin</a></li>
+      </ul>
+      <div class="nav-auth" id="nav-auth">
+        <button class="btn btn-ghost" onclick="navigate('login')">Sign In</button>
+        <button class="btn btn-primary" onclick="navigate('register')">Join Us</button>
+      </div>
+      <div class="nav-user" id="nav-user" style="display:none">
+        <span id="nav-username"></span>
+        <button class="btn btn-ghost" onclick="doLogout()">Sign Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main App Container -->
+  <main id="app"></main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Templates -->
+  <script id="tpl-home" type="text/template">
+    <section class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <p class="hero-eyebrow">Est. 2019 · Farm to Table</p>
+        <h1 class="hero-title">Taste the Art<br><em>of Fine Dining</em></h1>
+        <p class="hero-subtitle">Seasonal ingredients. Inspired recipes. Unforgettable evenings.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-lg" onclick="navigate('menu')">Explore Our Menu</button>
+          <button class="btn btn-outline btn-lg" onclick="document.getElementById('section-about').scrollIntoView({behavior:'smooth'})">Our Story</button>
+        </div>
+      </div>
+      <div class="hero-scroll">
+        <div class="scroll-indicator"></div>
+      </div>
+    </section>
+
+    <section class="features-bar">
+      <div class="feature-item">
+        <span class="feature-icon">🌿</span>
+        <div>
+          <strong>Farm Fresh</strong>
+          <p>Locally sourced daily</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">👨‍🍳</span>
+        <div>
+          <strong>Michelin Trained</strong>
+          <p>Award-winning chefs</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">🍷</span>
+        <div>
+          <strong>Curated Cellar</strong>
+          <p>500+ wine selection</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">⭐</span>
+        <div>
+          <strong>4.9 Rating</strong>
+          <p>2,400+ happy guests</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="section-featured">
+      <div class="section-header">
+        <p class="section-eyebrow">Seasonal Selections</p>
+        <h2 class="section-title">Featured Dishes</h2>
+        <p class="section-subtitle">Handpicked from today's kitchen, crafted with passion</p>
+      </div>
+      <div class="menu-grid" id="featured-grid">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+      <div class="section-cta">
+        <button class="btn btn-outline" onclick="navigate('menu')">View Full Menu →</button>
+      </div>
+    </section>
+
+    <section class="section section-dark" id="section-about">
+      <div class="about-layout">
+        <div class="about-text">
+          <p class="section-eyebrow">Our Philosophy</p>
+          <h2 class="section-title">Rooted in Craft,<br>Driven by Passion</h2>
+          <p class="about-body">At The Local Plate, every dish tells a story. Our chefs work directly with local farmers to bring you the freshest seasonal ingredients, transformed through classical French techniques and modern creativity.</p>
+          <p class="about-body">Whether you're joining us for a quiet dinner or a grand celebration, we craft every plate with the same devotion — because you deserve nothing less than extraordinary.</p>
+          <button class="btn btn-primary" onclick="navigate('menu')">Discover the Menu</button>
+        </div>
+        <div class="about-visual">
+          <div class="about-card">
+            <div class="about-stat">
+              <span class="stat-num">12+</span>
+              <span class="stat-label">Years of Excellence</span>
+            </div>
+          </div>
+          <div class="about-card about-card-sm">
+            <div class="about-stat">
+              <span class="stat-num">50+</span>
+              <span class="stat-label">Signature Dishes</span>
+            </div>
+          </div>
+          <div class="about-card about-card-sm about-card-offset">
+            <div class="about-stat">
+              <span class="stat-num">3</span>
+              <span class="stat-label">Culinary Awards</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="section-reviews">
+      <div class="section-header">
+        <p class="section-eyebrow">What Guests Say</p>
+        <h2 class="section-title">From Our Table to Yours</h2>
+      </div>
+      <div class="reviews-row" id="home-reviews">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-menu" type="text/template">
+    <section class="page-hero">
+      <div class="page-hero-content">
+        <p class="section-eyebrow">Explore</p>
+        <h1 class="page-title">Our Menu</h1>
+        <p class="page-subtitle">Seasonal ingredients, timeless recipes</p>
+      </div>
+    </section>
+    <section class="section">
+      <div class="menu-controls">
+        <div class="search-wrap">
+          <input type="text" id="menu-search" class="input-field" placeholder="Search dishes..." oninput="debounceSearch(this.value)" />
+          <span class="search-icon">🔍</span>
+        </div>
+        <div class="category-filters" id="category-filters">
+          <button class="chip chip-active" onclick="filterCategory('')">All</button>
+          <button class="chip" onclick="filterCategory('Pizza')">Pizza</button>
+          <button class="chip" onclick="filterCategory('Pasta')">Pasta</button>
+          <button class="chip" onclick="filterCategory('Mains')">Mains</button>
+          <button class="chip" onclick="filterCategory('Salads')">Salads</button>
+          <button class="chip" onclick="filterCategory('Burgers')">Burgers</button>
+          <button class="chip" onclick="filterCategory('Starters')">Starters</button>
+          <button class="chip" onclick="filterCategory('Soups')">Soups</button>
+          <button class="chip" onclick="filterCategory('Desserts')">Desserts</button>
+        </div>
+      </div>
+      <div class="menu-grid" id="menu-grid">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-item" type="text/template">
+    <section class="section" id="item-detail-section">
+      <div class="item-detail-layout">
+        <div class="item-image-wrap">
+          <div class="item-image-placeholder" id="item-img">🍽</div>
+        </div>
+        <div class="item-info" id="item-info">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+      </div>
+      <div class="item-reviews-section">
+        <h3 class="subsection-title">Guest Reviews</h3>
+        <div id="item-reviews"></div>
+        <div id="review-form-wrap"></div>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-login" type="text/template">
+    <section class="auth-section">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="auth-brand">🍽</div>
+          <h1 class="auth-title">Welcome Back</h1>
+          <p class="auth-subtitle">Sign in to continue your culinary journey</p>
+        </div>
+        <form id="login-form" class="auth-form" onsubmit="doLogin(event)">
+          <div class="form-group">
+            <label for="login-email">Email Address</label>
+            <input type="email" id="login-email" class="input-field" placeholder="you@example.com" required />
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" class="input-field" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
+          <p class="auth-switch">Don't have an account? <a href="#" onclick="navigate('register'); return false;">Join us</a></p>
+        </form>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-register" type="text/template">
+    <section class="auth-section">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="auth-brand">🍽</div>
+          <h1 class="auth-title">Create Account</h1>
+          <p class="auth-subtitle">Join The Local Plate family</p>
+        </div>
+        <form id="register-form" class="auth-form" onsubmit="doRegister(event)">
+          <div class="form-group">
+            <label for="reg-username">Username</label>
+            <input type="text" id="reg-username" class="input-field" placeholder="johndoe" required />
+          </div>
+          <div class="form-group">
+            <label for="reg-email">Email Address</label>
+            <input type="email" id="reg-email" class="input-field" placeholder="you@example.com" required />
+          </div>
+          <div class="form-group">
+            <label for="reg-password">Password</label>
+            <input type="password" id="reg-password" class="input-field" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="register-btn">Create Account</button>
+          <p class="auth-switch">Already have an account? <a href="#" onclick="navigate('login'); return false;">Sign in</a></p>
+        </form>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-orders" type="text/template">
+    <section class="page-hero">
+      <div class="page-hero-content">
+        <p class="section-eyebrow">Your History</p>
+        <h1 class="page-title">My Orders</h1>
+      </div>
+    </section>
+    <section class="section">
+      <div class="orders-list" id="orders-list">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-reviews" type="text/template">
+    <section class="page-hero">
+      <div class="page-hero-content">
+        <p class="section-eyebrow">Community</p>
+        <h1 class="page-title">Guest Reviews</h1>
+        <p class="page-subtitle">Real stories from our dining room</p>
+      </div>
+    </section>
+    <section class="section">
+      <div class="reviews-grid" id="reviews-grid">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+    </section>
+  </script>
+
+  <script id="tpl-admin" type="text/template">
+    <section class="page-hero">
+      <div class="page-hero-content">
+        <p class="section-eyebrow">Management</p>
+        <h1 class="page-title">Admin Panel</h1>
+      </div>
+    </section>
+    <section class="section">
+      <div class="admin-tabs">
+        <button class="tab-btn tab-active" onclick="adminTab('orders')">Orders</button>
+        <button class="tab-btn" onclick="adminTab('users')">Users</button>
+      </div>
+      <div id="admin-content">
+        <div class="skeleton-card"></div>
+      </div>
+    </section>
+  </script>
+
+  <script src="/static/assets/app.js"></script>
+</body>
+</html>

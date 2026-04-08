@@ -1,0 +1,21 @@
+# Binaries
+xvulnv2
+xvulnctl
+
+# Database
+restaurant.db
+restaurant.db-shm
+restaurant.db-wal
+
+# Reports (generated)
+reports/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

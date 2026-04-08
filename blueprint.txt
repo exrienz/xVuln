@@ -1,0 +1,242 @@
+build this app for me
+
+
+---
+
+# 📌 Fictional Restaurant Web App (Vulnerability Lab) — Clean Spec
+
+## 1. Goal
+
+Build a **realistic restaurant web application** where vulnerabilities exist as **natural developer mistakes inside normal features**.
+
+It must look and behave like a **production system**, not a training lab.
+
+---
+
+## 2. Core Principle
+
+Every vulnerability must be embedded in legitimate business logic and reachable through normal user behavior.
+
+Additionally:
+
+All known vulnerabilities MUST be explicitly defined and logged for benchmarking purposes.
+Each vulnerability must be traceable and identifiable to enable:
+- True Positive (TP) detection
+- False Positive (FP) detection
+- False Negative (FN) detection
+
+Validation must follow a behavior-based approach, aligned with the xBow pentest benchmark methodology:
+- No payload string matching
+- Detection based on observable effects (e.g., data leakage, response differences, internal access)
+
+The system must integrate with a ground truth definition (e.g., vulns.json) that maps:
+- Vulnerability ID
+- Endpoint
+- Trigger conditions
+- Validation logic
+
+All incoming requests and responses must be logged, including:
+- Endpoint
+- Parameters
+- Response size / status
+- Scanner identifier (e.g., via headers)
+
+Token usage tracking is handled externally and must not affect application behavior.
+The application MUST be implemented in Go (Golang) and follow idiomatic backend practices (e.g., structured handlers, middleware, deterministic behavior).
+
+---
+
+## 3. Required Features
+
+### Public
+
+* Browse menu
+* View item details
+* Search/filter menu
+* View restaurant info
+
+### Authenticated Users
+
+* Register & login (session-based)
+* Place orders
+* View order history
+
+### Recommended (Optional)
+
+* Reviews/ratings
+* Cart
+* Admin panel (menu/orders)
+
+---
+
+## 4. API Design Rules
+
+Use **real-world endpoints only**.
+
+### ✅ Good
+
+```
+GET  /api/menu
+GET  /api/menu?id=1
+POST /api/orders
+POST /login
+GET  /api/user/orders
+```
+
+### ❌ Not allowed
+
+```
+/vuln/sqli
+/debug/xss
+/test/ssrf
+```
+
+---
+
+## 5. Vulnerability Rules
+
+### 5.1 Placement
+
+Each vulnerability must:
+
+* Live inside a real feature
+* Be triggered via normal flows
+* Look like a real coding mistake
+
+---
+
+### 5.2 Examples (add all possible common vulnerability types from owasp web and api top 10)
+
+| Vulnerability | Where                   | Why                        |
+| ------------- | ----------------------- | -------------------------- |
+| SQL Injection | `GET /api/menu?id=1`    | Unsafe query building      |
+| XSS           | `POST /api/reviews`     | Unsanitized input rendered |
+| SSRF          | `POST /api/import-menu` | Server fetches user URL    |
+| Auth flaw     | `GET /api/orders/:id`   | No ownership check         |
+
+---
+
+## 6. Realism Requirements
+
+### Must behave like production:
+
+* Proper HTTP status codes
+* Clean JSON responses
+* Consistent structure
+
+### Must be logically consistent:
+
+* Orders map to real users
+* Menu items exist
+* Sessions work correctly
+
+### Must NOT:
+
+* Expose hints like `// vulnerable here`
+* Act like a CTF challenge
+
+---
+
+## 7. Data Models (Example)
+
+### Menu Item
+
+```json
+{
+  "id": 1,
+  "name": "Margherita Pizza",
+  "price": 12.5,
+  "description": "Classic Italian pizza"
+}
+```
+
+### Order
+
+```json
+{
+  "id": 101,
+  "user_id": 5,
+  "items": [1, 3],
+  "total": 25.0
+}
+```
+
+### User
+
+```json
+{
+  "id": 5,
+  "email": "user@test.com"
+}
+```
+
+---
+
+## 8. Scanner Compatibility
+
+The app must:
+
+* Accept normal HTTP traffic
+* Require no special config
+* Be discoverable via:
+
+  * crawling
+  * fuzzing
+  * input manipulation
+
+---
+
+## 9. Benchmark Integration
+
+Must support:
+
+* Deterministic responses
+* Resettable state
+* Full request logging
+* Compatibility with `vulns.json`
+
+---
+
+## 10. Determinism (Strict)
+
+* Same input → same output
+* Seeded data only
+* No randomness in:
+
+  * IDs
+  * ordering
+  * timestamps (unless controlled)
+
+---
+
+## 11. Forbidden Patterns
+
+* Fake vulnerability endpoints
+* Payload checks like:
+
+  ```go
+  if input == "' OR 1=1--"
+  ```
+* Responses that confirm exploitation
+* Non-exploitable bugs
+
+---
+
+## 12. Success Criteria
+
+You’re done when:
+
+* The app is indistinguishable from a real restaurant system
+* Vulnerabilities are:
+  * discoverable
+  * exploitable
+  * verifiable by behavior
+* It integrates cleanly into the benchmark pipeline
+* Record all known findings with request and expected response in known_findings.md for manual verification
+
+---
+
+## 13. Mental Model
+
+> Build a normal app.
+> Then make realistic mistakes—not obvious ones.
