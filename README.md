@@ -230,6 +230,10 @@ make report SCANNER=zap-run-001
 ### Scanner ID Rules
 - Must match: `[a-zA-Z0-9_-]{1,64}`
 - Validated at both Makefile and CLI levels
+- `SCANNER` is only the scanner ID value, not a header name
+- Valid: `make scan SCANNER=zap-run-001`
+- Invalid: `make scan SCANNER=X-Scanner-ID:zap-run-001`
+- Invalid: `make scan SCANNER=x-custom:zap-run-001`
 - Used as the report filename (e.g., `reports/zap-run-001.html`)
 
 ---
@@ -250,7 +254,12 @@ curl -X POST http://localhost:4443/api/reset
 ```
 
 ### Scanner Identification
-Tag your scanner's requests with either header — all traffic is logged to the `request_logs` table:
+Start the scan session with the ID value only:
+```bash
+make scan SCANNER=my-scanner-v1
+```
+
+Then tag your scanner's HTTP requests with either header below. All traffic is logged to the `request_logs` table using that value:
 ```
 X-Scanner-ID: my-scanner-v1
 X-Scan-Token: benchmark-run-001
