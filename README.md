@@ -22,6 +22,13 @@ Backend   →  http://localhost:4443   (Go REST API + SQLite)
 
 Both are served by a **single Go binary**. The frontend makes cross-origin API calls to the backend using `credentials: include` for session handling.
 
+Advanced lab scenarios are wired into the same app through feature-gated business flows:
+- Menu admin uploads store arbitrary assets under `static/uploads/menus/`
+- Order placement uses seeded kitchen inventory for stock reservation
+- Kitchen staff workflows use recipe viewing, inventory adjustment, and JWT-based panel access
+- Invoice exports are written to predictable public temp locations under `static/exports/tmp/`
+- Reverse-proxy desync is simulated through the kitchen dispatch endpoint
+
 ---
 
 ## ⚡ Quick Start
@@ -41,9 +48,6 @@ xcode-select --install
 ### Run
 
 ```bash
-# From the project root
-cd xVulnv2
-
 # Download dependencies
 go mod tidy
 
@@ -75,14 +79,18 @@ All settings are controlled via environment variables. Defaults work out of the 
 | `FRONTEND_PORT` | `4444` | Port for the static frontend server |
 | `BACKEND_PORT` | `4443` | Port for the REST API backend |
 | `DB_PATH` | `./restaurant.db` | SQLite database file path |
-| `SESSION_KEY` | `restaurant-secret-key-2024` | Session signing key |
+| `SESSION_KEY` | `lab-session-key-change-me` | Session signing key for local lab runs |
 | `LOG_PATH` | `./logs/requests.log` | Request log file |
+| `APP_ENV` | `lab` | Runtime environment; advanced vuln modules auto-disable in `production` |
+| `ENABLE_ADVANCED_VULNS` | `true` in lab/staging, `false` in production | Feature flag for V15–V20 |
 | `ALLOW_REMOTE_RESET` | `false` | Set `true` to allow `/api/reset` from non-localhost |
 
 Example with custom ports:
 ```bash
 FRONTEND_PORT=3000 BACKEND_PORT=3001 ./xvulnv2
 ```
+
+The repository only ships with placeholder lab secrets. Keep real environment files, local databases, generated uploads, exports, and reports out of Git.
 
 ---
 
@@ -142,6 +150,7 @@ The database is pre-seeded with deterministic data on every fresh start.
 | `GET` | `/api/menu` | No | All menu items. Optional `?category=Pizza` |
 | `GET` | `/api/menu/{id}` | No | Single item by ID |
 | `DELETE` | `/api/menu/{id}` | Session | Remove item (no admin check) |
+| `POST` | `/api/admin/menu/upload-image` | Session | Upload menu assets into the public static directory |
 | `GET` | `/api/search?q=` | No | Full-text search on name/description |
 
 ### Orders
@@ -150,6 +159,7 @@ The database is pre-seeded with deterministic data on every fresh start.
 |--------|----------|------|-------------|
 | `POST` | `/api/orders` | Session | Place a new order |
 | `GET` | `/api/orders/{id}` | Session | Get any order by ID (no ownership check) |
+| `GET` | `/api/orders/{id}/invoice/export` | Session | Export invoice to a predictable public temp file |
 | `GET` | `/api/user/orders` | Session | Get current user's orders |
 
 ### Reviews
@@ -174,7 +184,7 @@ The database is pre-seeded with deterministic data on every fresh start.
 | `GET` | `/admin/orders` | Header or Session | All orders with usernames |
 | `GET` | `/admin/users` | Header or Session | All users with passwords |
 
-Admin token header: `X-Admin-Token: restaurant-admin-2024`
+Admin token header: `X-Admin-Token: lab-admin-bypass-token`
 
 ### Utilities
 
@@ -189,6 +199,19 @@ Admin token header: `X-Admin-Token: restaurant-admin-2024`
 
 > ⚠️ `/api/reset` is restricted to localhost by default (returns 403 to remote callers). Set `ALLOW_REMOTE_RESET=true` to bypass. Prefer `make reset` instead.
 
+### Kitchen / Staff (Advanced Lab)
+
+These routes are enabled only when advanced lab modules are on.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/kitchen/recipes/view?source=` | No | Read local recipe files or fetch remote recipe templates |
+| `POST` | `/api/staff/session` | No | Issue weak JWT for kitchen/staff panel access |
+| `GET` | `/api/staff/panel` | Bearer JWT | Kitchen control panel backed by vulnerable JWT validation |
+| `GET` | `/api/kitchen/inventory` | Bearer JWT | View current stock levels per menu item |
+| `POST` | `/api/kitchen/inventory/adjust` | Bearer JWT | Adjust inventory without business-rule validation |
+| `POST` | `/api/kitchen/dispatch` | No | Simulated reverse-proxy dispatch flow for request smuggling |
+
 ---
 
 ## 🛠️ Makefile Workflow
@@ -197,6 +220,7 @@ The Makefile is the primary interface for benchmark operations. All sensitive op
 
 ```bash
 make build                        # Build server + CLI tool
+make start                        # Alias for run
 make run                          # Build and start the application
 make reset                        # Reset DB to seed state (CLI)
 make scan SCANNER=my-scanner-v1   # Start a scan session
@@ -210,7 +234,7 @@ make help                         # Show all targets
 
 ```bash
 # 1. Build and start the app
-make run &
+make start
 
 # 2. Reset to clean state
 make reset
@@ -218,9 +242,9 @@ make reset
 # 3. Start a scan session
 make scan SCANNER=zap-run-001
 
-# 4. Run your scanner with the header
+# 4. Run your scanner normally against both app ports with the header
 #    X-Scanner-ID: zap-run-001
-#    (all traffic is logged to request_logs table)
+#    (all tagged traffic is logged with request + response evidence)
 
 # 5. Generate the report
 make report SCANNER=zap-run-001
@@ -235,6 +259,14 @@ make report SCANNER=zap-run-001
 - Invalid: `make scan SCANNER=X-Scanner-ID:zap-run-001`
 - Invalid: `make scan SCANNER=x-custom:zap-run-001`
 - Used as the report filename (e.g., `reports/zap-run-001.html`)
+
+---
+
+## 🧹 Repo Hygiene
+
+- Generated artifacts are gitignored: local databases, logs, reports, public upload/export directories, and local `.env*` files
+- Keep only the source fixtures under `uploads/`; do not commit generated payloads from `static/uploads/` or invoice exports from `static/exports/`
+- Before pushing, run `make clean` if you want a fully reset workspace, then confirm `git status --short` only shows intentional source changes
 
 ---
 
@@ -272,14 +304,17 @@ sqlite3 restaurant.db "SELECT method, path, query, status, scanner_id FROM reque
 ```
 
 ### Ground Truth
-- **`vulns.json`** — machine-readable vulnerability definitions (ID, endpoint, trigger, validation logic, CWE, OWASP mapping)
+- **`vulns.json`** — machine-readable vulnerability definitions (ID, category, endpoint, flow, detection hints, trigger, validation logic, CWE, OWASP mapping)
 - **`known_findings.md`** — human-readable findings with exact curl examples and expected responses
+- Trigger verification is **internal to the benchmark harness** and is not exposed as a public HTTP endpoint.
+- `make report` now auto-scores from the logged scanner traffic itself. It does not require the scanner to call a benchmark API or export a custom findings artifact.
+- The report is intentionally conservative: it only auto-confirms findings that can be credibly proven from passive HTTP request/response evidence. Findings that require actor identity, forged-token provenance, or multi-request state are shown as **context required** instead of being over-credited or misclassified.
 
 ---
 
 ## 🛡️ Known Vulnerabilities (Summary)
 
-15 vulnerabilities are embedded as natural developer mistakes. Reference `vulns.json` for full machine-readable definitions and `known_findings.md` for exploit examples.
+20 findings are currently tracked by the benchmark. Reference `vulns.json` for full machine-readable definitions and `known_findings.md` for exploit examples.
 
 | ID | Type | Endpoint | Severity |
 |----|------|----------|----------|
@@ -294,10 +329,15 @@ sqlite3 restaurant.db "SELECT method, path, query, status, scanner_id FROM reque
 | V09 | Security Misconfiguration | `GET /api/debug/info` | 🔴 Critical |
 | V10 | Mass Assignment | `POST /register?role=admin` | 🔴 Critical |
 | V11 | Broken Function Auth | `DELETE /api/menu/{id}` | 🟠 High |
-| V12 | No Rate Limiting | `POST /login` | 🟡 Medium |
-| V13 | CSRF | `POST /api/orders` | 🟡 Medium |
-| V14 | Path Traversal | `GET /api/files?name=` | 🟠 High |
-| V15 | Insecure Deserialization | `POST /api/cart/restore` | 🟡 Medium |
+| V12 | CSRF | `POST /api/orders` | 🟡 Medium |
+| V13 | Path Traversal | `GET /api/files?name=` | 🟠 High |
+| V14 | Insecure Deserialization | `POST /api/cart/restore` | 🟡 Medium |
+| V15 | Unrestricted File Upload | `POST /api/admin/menu/upload-image` | 🟠 High |
+| V16 | API9 Improper Inventory Management | `POST /api/kitchen/inventory/adjust` | 🟠 High |
+| V17 | LFI / RFI | `GET /api/kitchen/recipes/view?source=` | 🔴 Critical |
+| V18 | HTTP Request Smuggling | `POST /api/kitchen/dispatch` | 🟠 High |
+| V19 | Insecure Temporary File Usage | `GET /api/orders/{id}/invoice/export` | 🟠 High |
+| V20 | JWT Validation Flaws | `POST /api/staff/session`, `GET /api/staff/panel` | 🔴 Critical |
 
 > All vulnerabilities follow behavior-based detection (no payload string matching). See `known_findings.md` for validation logic per finding.
 
@@ -312,6 +352,7 @@ sqlite3 restaurant.db "SELECT method, path, query, status, scanner_id FROM reque
 | Stop scan | `make scan-stop SCANNER=X` | ❌ No |
 | Generate report | `make report SCANNER=X` | ❌ No |
 | View reports | File system only | ❌ No |
+| Trigger evaluation | Internal harness only | ❌ No |
 
 **Key security properties:**
 - Scanner ID input is validated at two levels (Makefile regex + Go regex) — defence-in-depth
@@ -319,6 +360,9 @@ sqlite3 restaurant.db "SELECT method, path, query, status, scanner_id FROM reque
 - `LocalhostOnly` middleware checks `r.RemoteAddr` directly, ignores `X-Forwarded-For`
 - Generated reports exclude sensitive data (passwords, session keys)
 - `ALLOW_REMOTE_RESET` feature flag for controlled rollback
+- `APP_ENV=production` disables the advanced lab scenarios by default
+- `ENABLE_ADVANCED_VULNS=false` rolls back V15–V20 without touching existing lab flows
+- Remote recipe fetch and request-smuggling simulation endpoints are lightly rate-limited in-memory
 
 ---
 
@@ -346,6 +390,7 @@ xVulnv2/
 │   └── session.go           # Gorilla session management
 ├── handlers/
 │   ├── auth.go              # /register /login /logout /api/me
+│   ├── advanced_lab.go      # upload, recipe, inventory, JWT, temp export, smuggling
 │   ├── menu.go              # /api/menu /api/search
 │   ├── orders.go            # /api/orders
 │   ├── reviews.go           # /api/reviews
@@ -362,10 +407,13 @@ xVulnv2/
 │   └── assets/
 │       ├── style.css        # Dark luxury theme (Playfair Display + Inter)
 │       └── app.js           # SPA router + all API calls
+├── recipes/                 # Kitchen recipe fixtures for LFI/RFI flow
+├── static/uploads/menus/    # Public menu asset uploads
+├── static/exports/tmp/      # Predictable temp invoice exports
 ├── trigger/                 # Vulnerability detection engine
 ├── uploads/                 # Sample files for path traversal demo
 ├── reports/                 # Generated HTML reports (gitignored)
-├── vulns.json               # Ground truth — 15 vulnerability definitions
+├── vulns.json               # Ground truth — 20 vulnerability definitions
 └── known_findings.md        # Exploit examples + validation per finding
 ```
 
@@ -379,6 +427,15 @@ xVulnv2/
 - **Deterministic** — same input always produces the same output; IDs are seeded
 - **Resettable** — `make reset` (preferred) or `POST /api/reset` (localhost-only) restores full seed state for pipeline reruns
 - **Scanner-friendly** — normal HTTP, discoverable via crawling/fuzzing/input manipulation
+
+---
+
+## 🧪 Developer Notes
+
+- V15–V20 are isolated behind `APP_ENV` / `ENABLE_ADVANCED_VULNS`; existing V01–V14 behavior remains unchanged
+- The hardcoded secrets introduced for source-review exercises are placeholder lab values only
+- `go.mod` intentionally retains `github.com/dgrijalva/jwt-go` so dependency scanners can flag an archived auth component
+- Inventory and export additions are additive only; there are no destructive migrations
 
 ---
 
@@ -403,7 +460,7 @@ curl -X POST "http://localhost:4443/register?role=admin" \
   -d '{"username":"hacker","email":"h@evil.com","password":"pw"}'
 ```
 
-### Path Traversal (V14)
+### Path Traversal (V13)
 ```bash
 curl "http://localhost:4443/api/files?name=../../go.mod"
 ```
@@ -412,3 +469,16 @@ curl "http://localhost:4443/api/files?name=../../go.mod"
 ```bash
 curl http://localhost:4443/api/debug/info
 ```
+
+### Weak JWT / Staff Panel (V20)
+```bash
+curl -X POST http://localhost:4443/api/staff/session \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@thelocalplate.com","password":"Admin@2024!"}'
+```
+
+### Recipe Viewer LFI (V17)
+```bash
+curl "http://localhost:4443/api/kitchen/recipes/view?source=../../go.mod"
+```
+# xVuln
