@@ -264,6 +264,19 @@
             border-collapse: collapse;
         }
 
+        .table-scroll {
+            margin-top: 1rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border: 1px solid rgba(143, 59, 46, 0.12);
+            border-radius: 12px;
+            background: rgba(255, 250, 240, 0.55);
+        }
+
+        .table-scroll table {
+            margin: 0;
+        }
+
         th, td {
             padding: 0.75rem 1rem;
             text-align: left;
@@ -307,6 +320,39 @@
             max-width: 250px;
             overflow: hidden;
             text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .matrix-table {
+            min-width: 1160px;
+            table-layout: fixed;
+        }
+
+        .matrix-table td {
+            vertical-align: top;
+        }
+
+        .matrix-table .type-cell,
+        .matrix-table .mode-cell,
+        .matrix-table .status-cell {
+            white-space: normal;
+        }
+
+        .matrix-table .endpoint-cell {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            color: var(--text-primary);
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .matrix-table .metric-cell {
+            text-align: center;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .matrix-table .severity-cell,
+        .matrix-table .access-cell {
             white-space: nowrap;
         }
 
@@ -448,6 +494,9 @@
             .meta-row { gap: 1rem; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             th, td { padding: 0.7rem; }
+            .matrix-table {
+                min-width: 980px;
+            }
         }
 
         @media print {
@@ -635,38 +684,52 @@
                 Finding IDs, ordering, and access labels are rendered from the current <code>vulns.json</code> benchmark definitions plus the report scorer's reachability rules.
             </div>
             {{if .VulnCoverage}}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Vuln ID</th>
-                        <th>Type</th>
-                        <th>Endpoint</th>
-                        <th>Access</th>
-                        <th>Severity</th>
-                        <th>Scoring Mode</th>
-                        <th>Endpoint Hits</th>
-                        <th>Evidence Hits</th>
-                        <th>Confirmed Hits</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range .VulnCoverage}}
-                    <tr>
-                        <td><span class="vuln-tag">{{.ID}}</span></td>
-                        <td>{{.Type}}</td>
-                        <td class="path-cell">{{.Endpoint}}</td>
-                        <td><span class="access-tag">{{.Access}}</span></td>
-                        <td><span class="severity severity-{{.SeverityClass}}">{{.Severity}}</span></td>
-                        <td>{{.ScoringMode}}</td>
-                        <td>{{.RequestCount}}</td>
-                        <td>{{.EvidenceCount}}</td>
-                        <td>{{.MatchCount}}</td>
-                        <td><span class="outcome {{.OutcomeClass}}">{{.Outcome}}</span></td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
+            <div class="table-scroll">
+                <table class="matrix-table">
+                    <colgroup>
+                        <col style="width: 90px;">
+                        <col style="width: 220px;">
+                        <col style="width: 220px;">
+                        <col style="width: 150px;">
+                        <col style="width: 110px;">
+                        <col style="width: 150px;">
+                        <col style="width: 105px;">
+                        <col style="width: 105px;">
+                        <col style="width: 115px;">
+                        <col style="width: 220px;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Vuln ID</th>
+                            <th>Type</th>
+                            <th>Endpoint</th>
+                            <th>Access</th>
+                            <th>Severity</th>
+                            <th>Scoring Mode</th>
+                            <th>Endpoint Hits</th>
+                            <th>Evidence Hits</th>
+                            <th>Confirmed Hits</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .VulnCoverage}}
+                        <tr>
+                            <td><span class="vuln-tag">{{.ID}}</span></td>
+                            <td class="type-cell">{{.Type}}</td>
+                            <td class="endpoint-cell" title="{{.Endpoint}}">{{.Endpoint}}</td>
+                            <td class="access-cell"><span class="access-tag">{{.Access}}</span></td>
+                            <td class="severity-cell"><span class="severity severity-{{.SeverityClass}}">{{.Severity}}</span></td>
+                            <td class="mode-cell">{{.ScoringMode}}</td>
+                            <td class="metric-cell">{{.RequestCount}}</td>
+                            <td class="metric-cell">{{.EvidenceCount}}</td>
+                            <td class="metric-cell">{{.MatchCount}}</td>
+                            <td class="status-cell"><span class="outcome {{.OutcomeClass}}">{{.Outcome}}</span></td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
             {{else}}
             <div class="no-data">No vulnerability definitions loaded</div>
             {{end}}
@@ -702,34 +765,36 @@
             <span class="icon">📝</span>
             <h2>Request Log (Last {{.LogSampleSize}} Entries)</h2>
         </div>
-        <div class="section-body" style="overflow-x: auto;">
+        <div class="section-body">
             {{if .RequestLogs}}
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Time</th>
-                        <th>Method</th>
-                        <th>Path</th>
-                        <th>Query</th>
-                        <th>Status</th>
-                        <th>Size</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range .RequestLogs}}
-                    <tr{{if .IsVuln}} class="vuln-match"{{end}}>
-                        <td>{{.Index}}</td>
-                        <td>{{.Time}}</td>
-                        <td>{{.Method}}</td>
-                        <td class="path-cell" title="{{.Path}}">{{.Path}}</td>
-                        <td class="query-cell" title="{{.Query}}">{{.Query}}</td>
-                        <td>{{.Status}}</td>
-                        <td>{{.Size}}</td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Time</th>
+                            <th>Method</th>
+                            <th>Path</th>
+                            <th>Query</th>
+                            <th>Status</th>
+                            <th>Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .RequestLogs}}
+                        <tr{{if .IsVuln}} class="vuln-match"{{end}}>
+                            <td>{{.Index}}</td>
+                            <td>{{.Time}}</td>
+                            <td>{{.Method}}</td>
+                            <td class="path-cell" title="{{.Path}}">{{.Path}}</td>
+                            <td class="query-cell" title="{{.Query}}">{{.Query}}</td>
+                            <td>{{.Status}}</td>
+                            <td>{{.Size}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
             {{else}}
             <div class="no-data">No requests logged for this scanner</div>
             {{end}}
