@@ -20,10 +20,15 @@ func main() {
 	// Ensure directories exist
 	os.MkdirAll("./logs", 0755)
 	os.MkdirAll("./uploads", 0755)
+	os.MkdirAll("./recipes", 0755)
+	os.MkdirAll("./static/uploads/menus", 0755)
+	os.MkdirAll("./static/exports/tmp", 0755)
 
 	// Create sample upload files for path traversal demo
 	os.WriteFile("./uploads/menu_export.csv", []byte("id,name,price\n1,Margherita Pizza,14.99\n2,Pepperoni Feast,17.99\n"), 0644)
 	os.WriteFile("./uploads/specials.txt", []byte("Today's Specials:\n- Chef's Tasting Menu: $89\n- Wine Pairing: $45\n"), 0644)
+	os.WriteFile("./recipes/pasta.txt", []byte("Pasta Station Notes:\n- Finish with lemon zest\n- Hold truffle oil until pass\n"), 0644)
+	os.WriteFile("./recipes/salmon.txt", []byte("Salmon Pass:\n- Fire skin side first\n- Butter baste for 90 seconds\n"), 0644)
 
 	// Init database
 	db.Init(cfg.DBPath)
@@ -55,6 +60,7 @@ func main() {
 	api.HandleFunc("/api/search", handlers.SearchMenu).Methods("GET", "OPTIONS")
 
 	// Orders
+	api.HandleFunc("/api/orders/{id}/invoice/export", handlers.ExportInvoice).Methods("GET", "OPTIONS")
 	api.HandleFunc("/api/orders", handlers.PlaceOrder).Methods("POST", "OPTIONS")
 	api.HandleFunc("/api/orders/{id}", handlers.GetOrder).Methods("GET", "OPTIONS")
 	api.HandleFunc("/api/user/orders", handlers.GetUserOrders).Methods("GET", "OPTIONS")
@@ -81,6 +87,15 @@ func main() {
 	// Files (path traversal)
 	api.HandleFunc("/api/files", handlers.GetFile).Methods("GET", "OPTIONS")
 
+	// Advanced lab scenarios (enabled via APP_ENV/ENABLE_ADVANCED_VULNS)
+	api.HandleFunc("/api/admin/menu/upload-image", handlers.UploadMenuImage).Methods("POST", "OPTIONS")
+	api.HandleFunc("/api/kitchen/recipes/view", handlers.ViewRecipe).Methods("GET", "OPTIONS")
+	api.HandleFunc("/api/staff/session", handlers.CreateStaffSession).Methods("POST", "OPTIONS")
+	api.HandleFunc("/api/staff/panel", handlers.GetStaffPanel).Methods("GET", "OPTIONS")
+	api.HandleFunc("/api/kitchen/inventory", handlers.GetKitchenInventory).Methods("GET", "OPTIONS")
+	api.HandleFunc("/api/kitchen/inventory/adjust", handlers.AdjustKitchenInventory).Methods("POST", "OPTIONS")
+	api.HandleFunc("/api/kitchen/dispatch", handlers.DispatchKitchenTicket).Methods("POST", "OPTIONS")
+
 	// Cart (insecure deserialization)
 	api.HandleFunc("/api/cart", handlers.GetCart).Methods("GET", "OPTIONS")
 	api.HandleFunc("/api/cart/restore", handlers.RestoreCart).Methods("POST", "OPTIONS")
@@ -92,12 +107,13 @@ func main() {
 		api.Handle("/api/reset", middleware.LocalhostOnly(http.HandlerFunc(handlers.Reset))).Methods("POST", "OPTIONS")
 	}
 
-	// Trigger engine — vulnerability definitions and pattern-based evaluation
-	api.HandleFunc("/api/vulns", handlers.GetVulns).Methods("GET", "OPTIONS")
-	api.HandleFunc("/api/trigger/evaluate", handlers.EvaluateTrigger).Methods("POST", "OPTIONS")
+	// Trigger engine stays internal to the benchmark harness and is not exposed
+	// on the public HTTP surface. This prevents generic crawlers from discovering
+	// scoring helpers as application endpoints.
 
 	// ─── Frontend Static Server (port 4444) ───────────────────────────────────
 	fe := mux.NewRouter()
+	fe.Use(middleware.ConsoleLogger("frontend"))
 	fe.PathPrefix("/static/").Handler(
 		http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))),
 	)
@@ -111,7 +127,8 @@ func main() {
 
 	fmt.Println("🍽️  The Local Plate — Restaurant App")
 	fmt.Printf("   Frontend  →  http://localhost:%s\n", cfg.FrontendPort)
-	fmt.Printf("   Backend   →  http://localhost:%s\n\n", cfg.BackendPort)
+	fmt.Printf("   Backend   →  http://localhost:%s\n", cfg.BackendPort)
+	fmt.Printf("   Version   →  %s (%s, advanced_vulns=%t)\n\n", config.AppVersion, cfg.Environment, cfg.EnableAdvancedVulns)
 
 	// Start backend in background goroutine
 	go func() {

@@ -7,6 +7,7 @@ import (
 func Seed() {
 	seedUsers()
 	seedMenuItems()
+	seedInventory()
 	seedOrders()
 	seedReviews()
 	seedFiles()
@@ -33,9 +34,9 @@ func seedUsers() {
 
 func seedMenuItems() {
 	items := []struct {
-		id                          int
-		name, desc, cat, img        string
-		price                       float64
+		id                   int
+		name, desc, cat, img string
+		price                float64
 	}{
 		{1, "Margherita Pizza", "Classic Neapolitan pizza with San Marzano tomatoes, fresh mozzarella, and basil.", "Pizza", "/static/assets/img/pizza.jpg", 14.99},
 		{2, "Pepperoni Feast", "Loaded with premium pepperoni, mozzarella, and house tomato sauce.", "Pizza", "/static/assets/img/pizza2.jpg", 17.99},
@@ -103,6 +104,32 @@ func seedOrders() {
 	}
 }
 
+func seedInventory() {
+	items := []struct {
+		menuItemID int
+		stock      int
+		location   string
+	}{
+		{1, 2, "main-kitchen"},
+		{2, 3, "main-kitchen"},
+		{3, 4, "prep-station"},
+		{4, 2, "cold-room"},
+		{5, 6, "salad-pass"},
+		{6, 1, "grill-line"},
+		{7, 5, "pastry"},
+		{8, 3, "soup-kettle"},
+		{9, 4, "starter-pass"},
+		{10, 5, "pastry"},
+	}
+
+	stmt := `INSERT OR IGNORE INTO inventory (menu_item_id, stock, location) VALUES (?, ?, ?)`
+	for _, item := range items {
+		if _, err := DB.Exec(stmt, item.menuItemID, item.stock, item.location); err != nil {
+			log.Printf("seed inventory error: %v", err)
+		}
+	}
+}
+
 func seedReviews() {
 	reviews := []struct {
 		id, userID, menuItemID, rating int
@@ -130,9 +157,9 @@ func seedReviews() {
 
 func seedFiles() {
 	files := []struct {
-		id          int
-		name, path  string
-		uploadedBy  int
+		id         int
+		name, path string
+		uploadedBy int
 	}{
 		{1, "menu_export.csv", "uploads/menu_export.csv", 1},
 		{2, "specials.txt", "uploads/specials.txt", 1},

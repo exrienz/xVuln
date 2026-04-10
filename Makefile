@@ -13,7 +13,7 @@
 #   make help                         Show this help
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: build run reset scan scan-stop report clean help
+.PHONY: build run start reset scan scan-stop report clean help
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 
@@ -43,6 +43,8 @@ build: ## Build server binary and CLI tool
 run: build ## Build and start the application
 	@echo "🚀 Starting $(APP_NAME)..."
 	@./$(APP_NAME)
+
+start: run ## Alias for run
 
 # ─── Reset ─────────────────────────────────────────────────────────────────────
 

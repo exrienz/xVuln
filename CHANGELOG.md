@@ -6,6 +6,56 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.7.0] — 2026-04-08
+
+### Added
+
+- Introduced advanced vulnerability scenarios including file upload, race conditions, JWT issues, and request smuggling
+- Advanced lab-only routes for:
+  - menu asset upload (`POST /api/admin/menu/upload-image`)
+  - invoice export (`GET /api/orders/{id}/invoice/export`)
+  - kitchen recipe viewer (`GET /api/kitchen/recipes/view`)
+  - kitchen inventory APIs (`GET /api/kitchen/inventory`, `POST /api/kitchen/inventory/adjust`)
+  - staff JWT session/panel (`POST /api/staff/session`, `GET /api/staff/panel`)
+  - kitchen dispatch smuggling simulation (`POST /api/kitchen/dispatch`)
+- Inventory persistence (`inventory` table) seeded with low-stock items to support race-condition and API9 scenarios
+- Public temp export directory and menu upload directory under `static/` to support realistic file-handling scenarios
+- New recipe fixtures under `recipes/` for kitchen file-viewer flows
+- Benchmark schema support in `vulns.json` for `category`, `flow`, `feature_flag`, `lab_only`, and `detection_hints`
+- Nine new ground-truth entries (V16–V24) covering:
+  - unrestricted file upload
+  - race condition
+  - API9 improper inventory management
+  - LFI/RFI
+  - HTTP request smuggling
+  - insecure temporary file usage
+  - sensitive information in source code
+  - unmaintained third-party components
+  - JWT validation flaws
+
+### Changed
+
+- `config/config.go` — added `APP_ENV`, `ENABLE_ADVANCED_VULNS`, global config access, and bumped app version to `1.7.0`
+- `handlers/orders.go` — order placement now performs lab-only stock reservation using a vulnerable read/sleep/write pattern
+- `handlers/admin.go` — debug endpoint version now reports `1.7.0` and the configured environment
+- `handlers/reset.go` — reset now clears generated uploads and temp exports for deterministic reruns
+- `main.go` — creates advanced-lab directories/files at startup and registers all new routes
+- `README.md` / `known_findings.md` — expanded architecture, API, exploit, and operator notes for the new scenarios
+
+### Security
+
+- Advanced scenarios are disabled automatically when `APP_ENV=production` unless `ENABLE_ADVANCED_VULNS=true` is explicitly set
+- Added lightweight in-memory rate limiting on remote recipe fetches and request-smuggling simulation endpoints to reduce infrastructure abuse
+- Hardcoded secrets introduced for source-review exercises are lab-only placeholders, not real credentials
+
+### Backward Compatibility
+
+- Existing V01–V15 flows remain unchanged
+- No destructive database migrations were introduced; new tables are additive only
+- Rollback is supported by setting `ENABLE_ADVANCED_VULNS=false`
+
+---
+
 ## [1.6.0] — 2026-04-08
 
 ### Added
@@ -68,9 +118,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   - `trigger/strategies.go` — 6 detection strategies: `pattern_match`, `response_body_match`, `status_code`, `timing_anomaly`, `field_presence`, `error_signature`; `response_diff` stubbed for future iteration
   - `trigger/validator.go` — schema validation with ReDoS mitigation (500-character pattern length cap, pre-compile at startup)
 
-- **`GET /api/vulns`** — returns all 15 vulnerability definitions including both legacy trigger strings and new triggers arrays. No authentication required.
-
-- **`POST /api/trigger/evaluate`** — accepts a `{ vuln_id, request, response }` JSON snapshot and returns which heuristics fired. Enables scanner-agnostic detection for ZAP, Burp, AI-based fuzzers, and custom tools. No authentication required (consistent with lab design).
+- **Internal trigger evaluation payload** — accepts a `{ vuln_id, request, response }` snapshot and returns which heuristics fired when invoked by the benchmark harness. No public HTTP route is exposed.
 
 - **`TRIGGER_ENGINE` environment variable** — feature flag (`legacy` | `pattern` | `both`, default: `both`) for staged rollout and rollback.
 
@@ -79,7 +127,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - `config/config.go` — added `TriggerEngine` field populated from `TRIGGER_ENGINE` env var
-- `main.go` — trigger engine initialised at startup (fail-fast regex validation); two new API routes registered
+- `main.go` — trigger engine initialised at startup (fail-fast regex validation); no crawler-visible trigger evaluation routes registered
 - `vulns.json` — each entry extended with a `triggers` array; `trigger` string unchanged
 
 ### Security
@@ -92,7 +140,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Backward Compatibility
 
 - All 15 existing `trigger` (singular) strings preserved verbatim — no entries removed or modified
-- Entries without a `triggers` array continue to work; `POST /api/trigger/evaluate` returns the legacy string as a fallback
+- Entries without a `triggers` array continue to work; the internal evaluator returns the legacy string as a fallback
 - Setting `TRIGGER_ENGINE=legacy` bypasses the new engine entirely
 
 ---

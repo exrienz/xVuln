@@ -7,7 +7,7 @@ import (
 	"xvulnv2/middleware"
 )
 
-// POST /api/cart/restore — V15: insecure deserialization of base64-encoded JSON cart
+// POST /api/cart/restore — V14: insecure deserialization of base64-encoded JSON cart
 func RestoreCart(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_, ok := middleware.GetSessionUserID(r)
@@ -26,7 +26,7 @@ func RestoreCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// V15 — Insecure Deserialization: base64 decoded and parsed without validation
+	// V14 — Insecure Deserialization: base64 decoded and parsed without validation
 	decoded, err := base64.StdEncoding.DecodeString(body.CartData)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

@@ -178,7 +178,7 @@
     "owasp": "A01:2021",
     "endpoint": "GET /admin/orders, GET /admin/users",
     "param": "X-Admin-Token (header)",
-    "trigger": "GET /admin/orders with header X-Admin-Token: restaurant-admin-2024 (unauthenticated, or any logged-in user without admin role)",
+    "trigger": "GET /admin/orders with header X-Admin-Token: lab-admin-bypass-token (unauthenticated, or any logged-in user without admin role)",
     "triggers": [
       {
         "strategy": "pattern_match",
@@ -327,33 +327,6 @@
   },
   {
     "id": "V12",
-    "type": "Broken Authentication / Missing Rate Limiting",
-    "cwe": "CWE-307",
-    "owasp": "A07:2021",
-    "endpoint": "POST /login",
-    "param": "email, password (body)",
-    "trigger": "Send 100+ POST /login requests with different passwords within 10 seconds",
-    "triggers": [
-      {
-        "strategy": "status_code",
-        "description": "Login endpoint never responds with 429 (no rate limiting enforced)",
-        "status_codes": [429],
-        "negate": true,
-        "heuristic_name": "no_429_rate_limit_response"
-      },
-      {
-        "strategy": "timing_anomaly",
-        "description": "Login endpoint shows no increasing delay — no exponential backoff",
-        "threshold_ms": 2000,
-        "negate": true,
-        "heuristic_name": "no_timing_backoff"
-      }
-    ],
-    "validation": "All requests return 200 or 401 with no 429 rate limit response; no lockout occurs",
-    "severity": "Medium"
-  },
-  {
-    "id": "V13",
     "type": "CSRF",
     "cwe": "CWE-352",
     "owasp": "A01:2021",
@@ -386,7 +359,7 @@
     "severity": "Medium"
   },
   {
-    "id": "V14",
+    "id": "V13",
     "type": "Path Traversal",
     "cwe": "CWE-22",
     "owasp": "A01:2021",
@@ -418,7 +391,7 @@
     "severity": "High"
   },
   {
-    "id": "V15",
+    "id": "V14",
     "type": "Insecure Deserialization",
     "cwe": "CWE-502",
     "owasp": "A08:2021",
@@ -441,5 +414,253 @@
     ],
     "validation": "Response echoes back the deserialized cart including attacker-controlled discount/total fields without server-side recalculation",
     "severity": "Medium"
+  },
+  {
+    "id": "V15",
+    "category": "file_handling",
+    "type": "Unrestricted File Upload",
+    "cwe": "CWE-434",
+    "owasp": "A05:2021",
+    "endpoint": "POST /api/admin/menu/upload-image",
+    "param": "image (multipart file)",
+    "flow": "Admin menu image upload",
+    "feature_flag": "ENABLE_ADVANCED_VULNS",
+    "lab_only": true,
+    "detection_hints": [
+      "Upload a non-image extension such as .html or .svg",
+      "Confirm the response returns a public_url under /static/uploads/menus/",
+      "Fetch the uploaded asset directly to verify storage/exposure"
+    ],
+    "trigger": "POST /api/admin/menu/upload-image with multipart file named shell.svg or menu-admin.html",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Upload endpoint receives multipart file data",
+        "target": "request.headers",
+        "header_name": "Content-Type",
+        "pattern": "(?i)multipart/form-data",
+        "heuristic_name": "multipart_upload_detected"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Upload response returns the public URL of the stored asset",
+        "fields": ["public_url", "stored_path", "filename"],
+        "heuristic_name": "uploaded_asset_metadata_returned"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Uploaded asset is exposed from the public static uploads directory",
+        "pattern": "/static/uploads/menus/[^\"]+\\.(html|svg|js|php|txt|gif)",
+        "heuristic_name": "dangerous_upload_publicly_served"
+      }
+    ],
+    "validation": "Any uploaded file type is accepted, written under ./static/uploads/menus, and returned as a publicly fetchable URL",
+    "severity": "High"
+  },
+  {
+    "id": "V16",
+    "category": "api_business_logic",
+    "type": "API9: Improper Inventory Management",
+    "cwe": "CWE-840",
+    "owasp": "API9:2023",
+    "endpoint": "POST /api/kitchen/inventory/adjust",
+    "param": "delta / set_to (body JSON)",
+    "flow": "Kitchen stock adjustment API",
+    "feature_flag": "ENABLE_ADVANCED_VULNS",
+    "lab_only": true,
+    "detection_hints": [
+      "Use a staff token to set stock negative or to an unrealistic value",
+      "Observe that no approval workflow, range check, or warehouse validation exists",
+      "Read the updated stock back from /api/kitchen/inventory"
+    ],
+    "trigger": "POST /api/kitchen/inventory/adjust with {\"menu_item_id\":6,\"set_to\":-25,\"reason\":\"manual correction\"}",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Inventory adjustment request targets the kitchen stock API",
+        "target": "request.url",
+        "pattern": "/api/kitchen/inventory/adjust",
+        "heuristic_name": "inventory_adjust_endpoint_targeted"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Adjusted inventory response contains negative or extreme stock values",
+        "pattern": "\"stock\"\\s*:\\s*(-\\d+|[1-9]\\d{3,})",
+        "heuristic_name": "invalid_stock_value_accepted"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Inventory API echoes back updated stock and location without enforcement",
+        "fields": ["stock", "location", "updated_by"],
+        "heuristic_name": "inventory_business_fields_echoed"
+      }
+    ],
+    "validation": "The API accepts arbitrary direct stock rewrites, including negative values, without validation or workflow controls",
+    "severity": "High"
+  },
+  {
+    "id": "V17",
+    "category": "file_inclusion",
+    "type": "Local File Inclusion / Remote File Inclusion",
+    "cwe": "CWE-98",
+    "owasp": "A05:2021",
+    "endpoint": "GET /api/kitchen/recipes/view",
+    "param": "source (query param)",
+    "flow": "Kitchen recipe viewer",
+    "feature_flag": "ENABLE_ADVANCED_VULNS",
+    "lab_only": true,
+    "detection_hints": [
+      "Use ../../ paths to read local files outside ./recipes",
+      "Use http:// or https:// to make the server fetch a remote recipe template",
+      "Look for resolved_path, content, or remote fetch metadata in the response"
+    ],
+    "trigger": "GET /api/kitchen/recipes/view?source=../../go.mod or ?source=http://127.0.0.1:4443/api/debug/info",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Recipe source contains traversal sequences or remote URL schemes",
+        "target": "request.url",
+        "pattern": "(\\.\\./|https?://)",
+        "heuristic_name": "recipe_source_lfi_or_rfi_pattern"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Response exposes local resolved_path or remote fetch metadata",
+        "fields": ["resolved_path", "content_type", "content"],
+        "heuristic_name": "recipe_viewer_leakage_fields"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response body contains local file or internal service content",
+        "pattern": "(?i)(module xvulnv2|session_key|admin_token|root:x:0:0|package main)",
+        "heuristic_name": "local_or_remote_content_included"
+      }
+    ],
+    "validation": "The recipe viewer reads arbitrary local files via relative paths and fetches remote content directly when a URL is supplied",
+    "severity": "Critical"
+  },
+  {
+    "id": "V18",
+    "category": "protocol_handling",
+    "type": "HTTP Request Smuggling",
+    "cwe": "CWE-444",
+    "owasp": "A05:2021",
+    "endpoint": "POST /api/kitchen/dispatch",
+    "param": "Transfer-Encoding / Content-Length headers",
+    "flow": "Kitchen dispatch proxy simulation",
+    "feature_flag": "ENABLE_ADVANCED_VULNS",
+    "lab_only": true,
+    "detection_hints": [
+      "Send both Content-Length and Transfer-Encoding: chunked headers",
+      "Embed a second HTTP request after 0\\r\\n\\r\\n in the request body",
+      "Look for desync, smuggled_request, and interpretation mismatch fields in the response"
+    ],
+    "trigger": "POST /api/kitchen/dispatch with both Content-Length and Transfer-Encoding: chunked plus a second request after 0\\r\\n\\r\\n",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Request contains both TE and CL headers, indicating a parser desynchronisation attempt",
+        "target": "request.headers",
+        "pattern": "(?is)Content-Length:.*Transfer-Encoding|Transfer-Encoding:.*Content-Length",
+        "heuristic_name": "te_cl_header_conflict"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Dispatch response reports a desync and parsed smuggled request metadata",
+        "fields": ["desync", "smuggled_request", "frontend_interpretation", "backend_interpretation"],
+        "heuristic_name": "smuggling_simulation_response_fields"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Response explicitly shows frontend/backend interpretation mismatch",
+        "pattern": "(?i)(content_length|transfer_encoding|smuggled_response_preview)",
+        "heuristic_name": "parser_mismatch_reported"
+      }
+    ],
+    "validation": "When both TE and CL are supplied, the dispatch handler simulates a frontend/backend parsing mismatch and exposes the smuggled internal request target",
+    "severity": "High"
+  },
+  {
+    "id": "V19",
+    "category": "filesystem",
+    "type": "Insecure Temporary File Usage",
+    "cwe": "CWE-377",
+    "owasp": "A05:2021",
+    "endpoint": "GET /api/orders/{id}/invoice/export",
+    "param": "id (path)",
+    "flow": "Order invoice export",
+    "feature_flag": "ENABLE_ADVANCED_VULNS",
+    "lab_only": true,
+    "detection_hints": [
+      "Export an invoice and inspect the returned temp_path/public_url",
+      "Guess another order's invoice filename under /static/exports/tmp/",
+      "Confirm the file persists until manual cleanup"
+    ],
+    "trigger": "GET /api/orders/1/invoice/export as the owning user",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Invoice export route is invoked",
+        "target": "request.url",
+        "pattern": "/api/orders/\\d+/invoice/export",
+        "heuristic_name": "invoice_export_route_hit"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Export response returns predictable temporary file metadata",
+        "fields": ["temp_path", "public_url", "expires"],
+        "heuristic_name": "temporary_invoice_metadata_exposed"
+      },
+      {
+        "strategy": "response_body_match",
+        "description": "Temporary invoice is exposed under a public static path",
+        "pattern": "/static/exports/tmp/invoice-order-\\d+\\.json",
+        "heuristic_name": "predictable_public_invoice_url"
+      }
+    ],
+    "validation": "Invoice exports are written to a predictable public static directory with no automatic cleanup, making temporary files guessable and accessible",
+    "severity": "High"
+  },
+  {
+    "id": "V20",
+    "category": "authentication",
+    "type": "JWT Validation Flaws",
+    "cwe": "CWE-347",
+    "owasp": "A07:2021",
+    "endpoint": "POST /api/staff/session, GET /api/staff/panel",
+    "param": "Authorization: Bearer <JWT>",
+    "flow": "Staff/admin JWT session",
+    "feature_flag": "ENABLE_ADVANCED_VULNS",
+    "lab_only": true,
+    "detection_hints": [
+      "Forge a token with alg=none and role=admin",
+      "Reuse an expired token; exp is ignored by the panel endpoints",
+      "Modify the JWT role claim and sign with the weak hardcoded secret"
+    ],
+    "trigger": "GET /api/staff/panel with a forged JWT containing role=admin and alg=none",
+    "triggers": [
+      {
+        "strategy": "pattern_match",
+        "description": "Staff panel request carries a bearer token",
+        "target": "request.headers",
+        "header_name": "Authorization",
+        "pattern": "(?i)^Bearer\\s+[A-Za-z0-9_\\-.]+$",
+        "heuristic_name": "bearer_token_present"
+      },
+      {
+        "strategy": "status_code",
+        "description": "Staff panel still returns success for a forged or expired token",
+        "status_codes": [200],
+        "heuristic_name": "forged_staff_token_accepted"
+      },
+      {
+        "strategy": "field_presence",
+        "description": "Panel response exposes authenticated role and inventory data",
+        "fields": ["auth", "inventory"],
+        "heuristic_name": "staff_panel_data_returned"
+      }
+    ],
+    "validation": "The staff panel accepts alg=none tokens, uses a weak hardcoded signing secret, and does not validate expiration or issuer claims",
+    "severity": "Critical"
   }
 ]

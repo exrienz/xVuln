@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmark Detection Report — {{.ScannerID}}</title>
+    <style>
+        :root {
+            --bg-primary: #f7f1e5;
+            --bg-secondary: #fffaf0;
+            --bg-tertiary: #efe4cf;
+            --bg-card: #fffdf8;
+            --accent: #8f3b2e;
+            --accent-soft: #f3d7c4;
+            --accent-dim: #bf7a62;
+            --text-primary: #241a14;
+            --text-secondary: #5e4c42;
+            --text-muted: #8c786d;
+            --border: #dccfbe;
+            --red: #b7422f;
+            --orange: #bc6c25;
+            --yellow: #ad8b00;
+            --green: #2f7d4a;
+            --blue: #2f6690;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+            background:
+                radial-gradient(circle at top, rgba(243, 215, 196, 0.45), transparent 32%),
+                linear-gradient(180deg, #fbf6ed 0%, var(--bg-primary) 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .report-header {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, rgba(255, 250, 240, 0.98), rgba(243, 215, 196, 0.82));
+            border-bottom: 2px solid var(--accent-dim);
+            margin-bottom: 2rem;
+            box-shadow: 0 14px 34px rgba(96, 69, 48, 0.08);
+        }
+
+        .report-header h1 {
+            font-family: 'Iowan Old Style', 'Palatino Linotype', serif;
+            font-size: 2.2rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            letter-spacing: 1px;
+        }
+
+        .report-header .subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .report-header .scanner-badge {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.5rem 1.5rem;
+            background: rgba(143, 59, 46, 0.08);
+            border: 1px solid var(--accent-dim);
+            border-radius: 6px;
+            color: var(--accent);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.95rem;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            text-align: center;
+        }
+
+        .meta-item .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .meta-item .value {
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Sections */
+        .section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 10px 24px rgba(95, 73, 55, 0.06);
+        }
+
+        .section-header {
+            padding: 1rem 1.5rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-header h2 {
+            font-size: 1.1rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .section-header .icon {
+            font-size: 1.2rem;
+        }
+
+        .section-body {
+            padding: 1.5rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(180deg, rgba(255, 250, 240, 0.95), rgba(239, 228, 207, 0.65));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.2rem;
+            text-align: center;
+        }
+
+        .stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.3rem;
+        }
+
+        .stat-card.metric-good .stat-value { color: var(--green); }
+        .stat-card.metric-risk .stat-value { color: var(--red); }
+        .stat-card.metric-score .stat-value { color: var(--blue); }
+        .stat-card.metric-neutral .stat-value { color: var(--text-primary); }
+
+        .benchmark-note {
+            margin-top: 1rem;
+            padding: 0.9rem 1rem;
+            border: 1px solid rgba(143, 59, 46, 0.16);
+            border-radius: 10px;
+            background: rgba(143, 59, 46, 0.05);
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+        }
+
+        /* Method Distribution */
+        .method-bar {
+            display: flex;
+            height: 32px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .method-bar .segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fff;
+            min-width: 40px;
+        }
+
+        .method-GET { background: var(--blue); }
+        .method-POST { background: var(--green); }
+        .method-PUT { background: var(--orange); }
+        .method-DELETE { background: var(--red); }
+        .method-OPTIONS { background: var(--accent-dim); }
+        .method-other { background: var(--text-muted); }
+
+        .method-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .method-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .method-legend-item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        /* Status Distribution */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 1rem;
+            background: rgba(255, 250, 240, 0.88);
+            border-radius: 4px;
+            border-left: 3px solid;
+        }
+
+        .status-item.s2xx { border-color: var(--green); }
+        .status-item.s3xx { border-color: var(--blue); }
+        .status-item.s4xx { border-color: var(--orange); }
+        .status-item.s5xx { border-color: var(--red); }
+
+        .status-item .code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .status-item .count {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.88rem;
+        }
+
+        th {
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: var(--bg-tertiary);
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            color: var(--text-secondary);
+        }
+
+        tr:hover td {
+            background: rgba(143, 59, 46, 0.04);
+        }
+
+        .path-cell {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.82rem;
+            color: var(--text-primary);
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .query-cell {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Severity badges */
+        .severity {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-critical { background: rgba(231, 76, 60, 0.2); color: var(--red); }
+        .severity-high { background: rgba(243, 156, 18, 0.2); color: var(--orange); }
+        .severity-medium { background: rgba(241, 196, 15, 0.2); color: var(--yellow); }
+        .severity-low { background: rgba(39, 174, 96, 0.2); color: var(--green); }
+
+        .outcome {
+            display: inline-block;
+            padding: 0.18rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .outcome-tp {
+            background: rgba(39, 174, 96, 0.18);
+            color: var(--green);
+        }
+
+        .outcome-fn {
+            background: rgba(231, 76, 60, 0.18);
+            color: var(--red);
+        }
+
+        .outcome-review {
+            background: rgba(243, 156, 18, 0.18);
+            color: var(--orange);
+        }
+
+        /* Vuln indicator */
+        .vuln-match {
+            border-left: 3px solid var(--red);
+        }
+
+        .vuln-tag {
+            display: inline-block;
+            padding: 0.1rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: rgba(143, 59, 46, 0.12);
+            color: var(--accent);
+            margin-right: 0.3rem;
+        }
+
+        .access-tag {
+            display: inline-block;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: rgba(47, 102, 144, 0.10);
+            border: 1px solid rgba(47, 102, 144, 0.16);
+            white-space: nowrap;
+        }
+
+        /* Endpoint coverage */
+        .endpoint-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .endpoint-row:last-child {
+            border-bottom: none;
+        }
+
+        .endpoint-path {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .endpoint-count {
+            background: var(--bg-tertiary);
+            padding: 0.2rem 0.7rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: var(--accent);
+            font-weight: 600;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .bar-fill {
+            height: 6px;
+            background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+            border-radius: 3px;
+            min-width: 4px;
+        }
+
+        .bar-container {
+            width: 120px;
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        /* Footer */
+        .report-footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border);
+            margin-top: 2rem;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .report-header { padding: 2rem 1rem; }
+            .report-header h1 { font-size: 1.6rem; }
+            .meta-row { gap: 1rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            th, td { padding: 0.7rem; }
+        }
+
+        @media print {
+            body { background: #fff; color: #000; }
+            .section { border-color: #ccc; }
+            th { background: #f5f5f5; color: #333; }
+            td { color: #333; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="report-header">
+    <h1>🛡️ Benchmark Detection Report</h1>
+    <p class="subtitle">xVulnv2 — The Local Plate Vulnerability Lab</p>
+    <div class="scanner-badge">Scanner: {{.ScannerID}}</div>
+    <div class="meta-row">
+        <div class="meta-item">
+            <div class="label">Scan Started</div>
+            <div class="value">{{.StartedAt}}</div>
+        </div>
+        <div class="meta-item">
+            <div class="label">Scan Completed</div>
+            <div class="value">{{.CompletedAt}}</div>
+        </div>
+        <div class="meta-item">
+            <div class="label">Duration</div>
+            <div class="value">{{.Duration}}</div>
+        </div>
+        <div class="meta-item">
+            <div class="label">Report Generated</div>
+            <div class="value">{{.GeneratedAt}}</div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Behavioral Scorecard -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">🏁</span>
+            <h2>Behavioral Coverage Scorecard</h2>
+        </div>
+        <div class="section-body">
+            <div class="stats-grid">
+                <div class="stat-card metric-neutral">
+                    <div class="stat-value">{{.Benchmark.KnownFindings}}</div>
+                    <div class="stat-label">Known Findings</div>
+                </div>
+                <div class="stat-card metric-neutral">
+                    <div class="stat-value">{{.Benchmark.AutoConfirmableFindings}}</div>
+                    <div class="stat-label">Auto-Confirmable</div>
+                </div>
+                <div class="stat-card metric-neutral">
+                    <div class="stat-value">{{.Benchmark.ContextRequiredFindings}}</div>
+                    <div class="stat-label">Context Required</div>
+                </div>
+                <div class="stat-card metric-good">
+                    <div class="stat-value">{{.Benchmark.ConfirmedFindings}}</div>
+                    <div class="stat-label">Auto-Confirmed</div>
+                </div>
+                <div class="stat-card metric-neutral">
+                    <div class="stat-value">{{.Benchmark.InconclusiveFindings}}</div>
+                    <div class="stat-label">Needs Review</div>
+                </div>
+                <div class="stat-card metric-risk">
+                    <div class="stat-value">{{.Benchmark.NotExercisedFindings}}</div>
+                    <div class="stat-label">Not Exercised</div>
+                </div>
+                <div class="stat-card metric-score">
+                    <div class="stat-value">{{.Benchmark.Coverage}}</div>
+                    <div class="stat-label">Auto-Confirm Coverage</div>
+                </div>
+                <div class="stat-card metric-neutral">
+                    <div class="stat-value">{{.Benchmark.ExercisedFindings}}</div>
+                    <div class="stat-label">Findings Touched</div>
+                </div>
+                <div class="stat-card metric-neutral">
+                    <div class="stat-value">{{.Benchmark.CandidateRequests}}</div>
+                    <div class="stat-label">Requests With Hits</div>
+                </div>
+                <div class="stat-card metric-good">
+                    <div class="stat-value">{{.Benchmark.ConfirmedRequests}}</div>
+                    <div class="stat-label">Confirmed Requests</div>
+                </div>
+            </div>
+            <div class="benchmark-note">
+                {{.Benchmark.AutoDetectionLabel}}
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📊</span>
+            <h2>Scan Summary</h2>
+        </div>
+        <div class="section-body">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{{.TotalRequests}}</div>
+                    <div class="stat-label">Total Requests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{.UniqueEndpoints}}</div>
+                    <div class="stat-label">Unique Endpoints</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{.VulnEndpointsHit}}</div>
+                    <div class="stat-label">Vuln Endpoints Hit</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{.AvgResponseSize}}</div>
+                    <div class="stat-label">Avg Response (bytes)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{.RequestsPerSecond}}</div>
+                    <div class="stat-label">Requests / Second</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTTP Method Distribution -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📡</span>
+            <h2>HTTP Method Distribution</h2>
+        </div>
+        <div class="section-body">
+            {{if .MethodSegments}}
+            <div class="method-bar">
+                {{range .MethodSegments}}
+                <div class="segment method-{{.Method}}" style="flex: {{.Count}};" title="{{.Method}}: {{.Count}} requests ({{.Percent}}%)">
+                    {{.Method}} {{.Percent}}%
+                </div>
+                {{end}}
+            </div>
+            <div class="method-legend">
+                {{range .MethodSegments}}
+                <div class="method-legend-item">
+                    <div class="dot method-{{.Method}}"></div>
+                    <span>{{.Method}}: {{.Count}}</span>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="no-data">No request data available</div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Status Code Distribution -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📋</span>
+            <h2>Response Status Codes</h2>
+        </div>
+        <div class="section-body">
+            {{if .StatusCodes}}
+            <div class="status-grid">
+                {{range .StatusCodes}}
+                <div class="status-item {{.Class}}">
+                    <span class="code">{{.Code}}</span>
+                    <span class="count">{{.Count}}</span>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="no-data">No response data available</div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Known Findings Detection Matrix -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">🎯</span>
+            <h2>Known Findings Detection Matrix</h2>
+        </div>
+        <div class="section-body">
+            <div class="benchmark-note">
+                Finding IDs, ordering, and access labels are rendered from the current <code>vulns.json</code> benchmark definitions plus the report scorer's reachability rules.
+            </div>
+            {{if .VulnCoverage}}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Vuln ID</th>
+                        <th>Type</th>
+                        <th>Endpoint</th>
+                        <th>Access</th>
+                        <th>Severity</th>
+                        <th>Scoring Mode</th>
+                        <th>Endpoint Hits</th>
+                        <th>Evidence Hits</th>
+                        <th>Confirmed Hits</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .VulnCoverage}}
+                    <tr>
+                        <td><span class="vuln-tag">{{.ID}}</span></td>
+                        <td>{{.Type}}</td>
+                        <td class="path-cell">{{.Endpoint}}</td>
+                        <td><span class="access-tag">{{.Access}}</span></td>
+                        <td><span class="severity severity-{{.SeverityClass}}">{{.Severity}}</span></td>
+                        <td>{{.ScoringMode}}</td>
+                        <td>{{.RequestCount}}</td>
+                        <td>{{.EvidenceCount}}</td>
+                        <td>{{.MatchCount}}</td>
+                        <td><span class="outcome {{.OutcomeClass}}">{{.Outcome}}</span></td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <div class="no-data">No vulnerability definitions loaded</div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Top Endpoints -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">🔗</span>
+            <h2>Top Endpoints by Request Count</h2>
+        </div>
+        <div class="section-body">
+            {{if .TopEndpoints}}
+            {{range .TopEndpoints}}
+            <div class="endpoint-row">
+                <span class="endpoint-path">{{.Path}}</span>
+                <div class="bar-container">
+                    <div class="bar-fill" style="width: {{.BarPercent}}%;"></div>
+                </div>
+                <span class="endpoint-count">{{.Count}}</span>
+            </div>
+            {{end}}
+            {{else}}
+            <div class="no-data">No endpoint data available</div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Request Log (sample) -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📝</span>
+            <h2>Request Log (Last {{.LogSampleSize}} Entries)</h2>
+        </div>
+        <div class="section-body" style="overflow-x: auto;">
+            {{if .RequestLogs}}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Time</th>
+                        <th>Method</th>
+                        <th>Path</th>
+                        <th>Query</th>
+                        <th>Status</th>
+                        <th>Size</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .RequestLogs}}
+                    <tr{{if .IsVuln}} class="vuln-match"{{end}}>
+                        <td>{{.Index}}</td>
+                        <td>{{.Time}}</td>
+                        <td>{{.Method}}</td>
+                        <td class="path-cell" title="{{.Path}}">{{.Path}}</td>
+                        <td class="query-cell" title="{{.Query}}">{{.Query}}</td>
+                        <td>{{.Status}}</td>
+                        <td>{{.Size}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <div class="no-data">No requests logged for this scanner</div>
+            {{end}}
+        </div>
+    </div>
+
+</div>
+
+<div class="report-footer">
+    <p>Generated by <strong>xvulnctl</strong> — xVulnv2 Benchmark CLI</p>
+    <p>Report scoped to scanner: <code>{{.ScannerID}}</code></p>
+</div>
+
+</body>
+</html>

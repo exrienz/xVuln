@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// GET /api/files?name= — V14: path traversal via filename parameter
+// GET /api/files?name= — V13: path traversal via filename parameter
 func GetFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	name := r.URL.Query().Get("name")
@@ -17,7 +17,7 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// V14 — Path Traversal: filename not sanitized, allows ../../etc/passwd
+	// V13 — Path Traversal: filename not sanitized, allows ../../etc/passwd
 	basePath := "./uploads"
 	fullPath := filepath.Join(basePath, name)
 

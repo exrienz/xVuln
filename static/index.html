@@ -21,6 +21,7 @@
         <li><a href="#" onclick="navigate('home'); return false;">Home</a></li>
         <li><a href="#" onclick="navigate('menu'); return false;">Menu</a></li>
         <li><a href="#" onclick="navigate('reviews'); return false;">Reviews</a></li>
+        <li><a href="#" onclick="navigate('lab'); return false;">Lab</a></li>
         <li><a href="#" id="nav-orders" onclick="navigate('orders'); return false;" style="display:none">My Orders</a></li>
         <li><a href="#" id="nav-admin" onclick="navigate('admin'); return false;" style="display:none">Admin</a></li>
       </ul>
@@ -304,6 +305,117 @@
       <div id="admin-content">
         <div class="skeleton-card"></div>
       </div>
+    </section>
+  </script>
+
+  <script id="tpl-lab" type="text/template">
+    <section class="page-hero">
+      <div class="page-hero-content">
+        <p class="section-eyebrow">Advanced Lab</p>
+        <h1 class="page-title">Security Exercise Routes</h1>
+        <p class="page-subtitle">Backend-only endpoints exposed for lab scenarios on <code>http://localhost:4443</code></p>
+      </div>
+    </section>
+    <section class="section">
+      <div class="lab-banner">
+        <div>
+          <p class="lab-banner-title">What this screen covers</p>
+          <p class="lab-banner-text">These flows are not part of the normal restaurant UI. They are API-first lab routes for file handling, JWT exercises, inventory races, and request smuggling.</p>
+        </div>
+        <div class="lab-banner-meta">
+          <span class="lab-pill">Backend: <code>:4443</code></span>
+          <span class="lab-pill">Feature flag: <code>ENABLE_ADVANCED_VULNS=true</code></span>
+        </div>
+      </div>
+
+      <div class="lab-grid">
+        <article class="lab-card">
+          <div class="lab-card-head">
+            <span class="lab-method">POST</span>
+            <span class="lab-auth">Session</span>
+          </div>
+          <h3 class="lab-card-title">Menu Asset Upload</h3>
+          <p class="lab-endpoint">/api/admin/menu/upload-image</p>
+          <p class="lab-text">Uploads a menu asset into the public static directory. Requires a normal app login session cookie.</p>
+          <pre class="lab-code">curl -X POST http://localhost:4443/api/admin/menu/upload-image -b cookies.txt -F menu_item_id=1 -F image=@menu-admin.html</pre>
+          <div class="lab-actions">
+            <button class="btn btn-outline" onclick="copyLabRequest(LAB_REQUESTS.uploadImage, 'Upload example')">Copy Example</button>
+          </div>
+        </article>
+
+        <article class="lab-card">
+          <div class="lab-card-head">
+            <span class="lab-method">GET</span>
+            <span class="lab-auth">Session</span>
+          </div>
+          <h3 class="lab-card-title">Invoice Export</h3>
+          <p class="lab-endpoint">/api/orders/{id}/invoice/export</p>
+          <p class="lab-text">Exports an invoice into a predictable public temp path. Use a valid login session and an existing order id.</p>
+          <pre class="lab-code">curl http://localhost:4443/api/orders/1/invoice/export -b cookies.txt</pre>
+          <div class="lab-actions">
+            <button class="btn btn-outline" onclick="copyLabRequest(LAB_REQUESTS.invoiceExport, 'Invoice export example')">Copy Example</button>
+          </div>
+        </article>
+
+        <article class="lab-card">
+          <div class="lab-card-head">
+            <span class="lab-method">GET</span>
+            <span class="lab-auth">None</span>
+          </div>
+          <h3 class="lab-card-title">Recipe Viewer</h3>
+          <p class="lab-endpoint">/api/kitchen/recipes/view?source=</p>
+          <p class="lab-text">Reads recipe fixtures from <code>recipes/</code> and exposes the lab file-viewer behavior directly.</p>
+          <pre class="lab-code">curl "http://localhost:4443/api/kitchen/recipes/view?source=pasta.txt"</pre>
+          <div class="lab-actions">
+            <a class="btn btn-primary" href="http://localhost:4443/api/kitchen/recipes/view?source=pasta.txt" target="_blank" rel="noreferrer">Open Example</a>
+            <button class="btn btn-outline" onclick="copyLabRequest(LAB_REQUESTS.recipeViewer, 'Recipe viewer example')">Copy Example</button>
+          </div>
+        </article>
+
+        <article class="lab-card">
+          <div class="lab-card-head">
+            <span class="lab-method">POST / GET</span>
+            <span class="lab-auth">Bearer JWT</span>
+          </div>
+          <h3 class="lab-card-title">Staff Session and Panel</h3>
+          <p class="lab-endpoint">/api/staff/session, /api/staff/panel</p>
+          <p class="lab-text">Issue a kitchen staff token, then send it as <code>Authorization: Bearer ...</code> to the panel and inventory routes.</p>
+          <pre class="lab-code">curl -X POST http://localhost:4443/api/staff/session -H "Content-Type: application/json" -d '{"email":"admin@thelocalplate.com","password":"Admin@2024!"}'</pre>
+          <div class="lab-actions">
+            <button class="btn btn-outline" onclick="copyLabRequest(LAB_REQUESTS.staffSession, 'Staff session example')">Copy Session Example</button>
+          </div>
+        </article>
+
+        <article class="lab-card">
+          <div class="lab-card-head">
+            <span class="lab-method">GET / POST</span>
+            <span class="lab-auth">Bearer JWT</span>
+          </div>
+          <h3 class="lab-card-title">Kitchen Inventory</h3>
+          <p class="lab-endpoint">/api/kitchen/inventory, /api/kitchen/inventory/adjust</p>
+          <p class="lab-text">View seeded low-stock items and adjust them through the lab-only inventory APIs.</p>
+          <pre class="lab-code">curl -X POST http://localhost:4443/api/kitchen/inventory/adjust -H "Authorization: Bearer &lt;token&gt;" -H "Content-Type: application/json" -d '{"menu_item_id":6,"set_to":-25,"reason":"manual correction"}'</pre>
+          <div class="lab-actions">
+            <button class="btn btn-outline" onclick="copyLabRequest(LAB_REQUESTS.inventoryAdjust, 'Inventory adjust example')">Copy Example</button>
+          </div>
+        </article>
+
+        <article class="lab-card">
+          <div class="lab-card-head">
+            <span class="lab-method">POST</span>
+            <span class="lab-auth">None</span>
+          </div>
+          <h3 class="lab-card-title">Kitchen Dispatch</h3>
+          <p class="lab-endpoint">/api/kitchen/dispatch</p>
+          <p class="lab-text">Reverse-proxy dispatch simulation for the request-smuggling exercise. Use a proxy-capable client for full behavior.</p>
+          <pre class="lab-code">POST http://localhost:4443/api/kitchen/dispatch</pre>
+          <div class="lab-actions">
+            <button class="btn btn-outline" onclick="copyLabRequest(LAB_REQUESTS.dispatch, 'Dispatch endpoint')">Copy Endpoint</button>
+          </div>
+        </article>
+      </div>
+
+      <p class="lab-footnote">Session-based routes use your normal restaurant login cookie. JWT-based routes start with <code>POST /api/staff/session</code>. If advanced modules are disabled, these routes return 404.</p>
     </section>
   </script>
 

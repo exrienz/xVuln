@@ -10,6 +10,15 @@ const CATEGORY_ICONS = {
   Burgers: '🍔', Starters: '🫙', Soups: '🍲', Desserts: '🍰',
 };
 
+const LAB_REQUESTS = {
+  uploadImage: 'curl -X POST http://localhost:4443/api/admin/menu/upload-image -b cookies.txt -F menu_item_id=1 -F image=@menu-admin.html',
+  invoiceExport: 'curl http://localhost:4443/api/orders/1/invoice/export -b cookies.txt',
+  recipeViewer: 'curl "http://localhost:4443/api/kitchen/recipes/view?source=pasta.txt"',
+  staffSession: `curl -X POST http://localhost:4443/api/staff/session -H "Content-Type: application/json" -d '{"email":"admin@thelocalplate.com","password":"Admin@2024!"}'`,
+  inventoryAdjust: `curl -X POST http://localhost:4443/api/kitchen/inventory/adjust -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"menu_item_id":6,"set_to":-25,"reason":"manual correction"}'`,
+  dispatch: 'POST http://localhost:4443/api/kitchen/dispatch',
+};
+
 let currentUser = null;
 let currentItemID = null;
 let selectedRating = 0;
@@ -18,16 +27,11 @@ let searchTimer = null;
 /* ======================== INIT ======================== */
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAuth();
-  const path = window.location.pathname;
-  if (path === '/menu') navigate('menu');
-  else if (path.startsWith('/menu/')) {
-    const id = path.split('/').pop();
-    navigateItem(id);
-  } else if (path === '/login') navigate('login');
-  else if (path === '/register') navigate('register');
-  else if (path === '/orders') navigate('orders');
-  else if (path === '/admin') navigate('admin');
-  else navigate('home');
+  renderCurrentRoute();
+});
+
+window.addEventListener('popstate', () => {
+  renderCurrentRoute(false);
 });
 
 /* ======================== AUTH CHECK ======================== */
@@ -63,8 +67,38 @@ function updateNavForGuest() {
 }
 
 /* ======================== NAVIGATION ======================== */
-function navigate(page, params) {
-  const app = document.getElementById('app');
+function renderCurrentRoute(pushHistory = false) {
+  const path = window.location.pathname;
+  if (path === '/menu') navigate('menu', null, { pushHistory });
+  else if (path.startsWith('/menu/')) {
+    const id = path.split('/').pop();
+    navigate('item', id, { pushHistory });
+  } else if (path === '/login') navigate('login', null, { pushHistory });
+  else if (path === '/register') navigate('register', null, { pushHistory });
+  else if (path === '/orders') navigate('orders', null, { pushHistory });
+  else if (path === '/reviews') navigate('reviews', null, { pushHistory });
+  else if (path === '/admin') navigate('admin', null, { pushHistory });
+  else if (path === '/lab') navigate('lab', null, { pushHistory });
+  else navigate('home', null, { pushHistory });
+}
+
+function routeFor(page, params) {
+  switch (page) {
+    case 'home': return '/';
+    case 'menu': return '/menu';
+    case 'login': return '/login';
+    case 'register': return '/register';
+    case 'orders': return '/orders';
+    case 'reviews': return '/reviews';
+    case 'admin': return '/admin';
+    case 'lab': return '/lab';
+    case 'item': return `/menu/${params}`;
+    default: return '/';
+  }
+}
+
+function navigate(page, params, options = {}) {
+  const { pushHistory = true } = options;
   switch(page) {
     case 'home':     renderHome(); break;
     case 'menu':     renderMenu(); break;
@@ -73,8 +107,15 @@ function navigate(page, params) {
     case 'orders':   renderOrders(); break;
     case 'reviews':  renderReviews(); break;
     case 'admin':    renderAdmin(); break;
+    case 'lab':      renderLab(); break;
     case 'item':     renderItem(params); break;
     default: renderHome();
+  }
+  if (pushHistory) {
+    const target = routeFor(page, params);
+    if (window.location.pathname !== target) {
+      window.history.pushState({ page, params }, '', target);
+    }
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -394,6 +435,10 @@ function renderAdmin() {
   adminTab('orders');
 }
 
+function renderLab() {
+  document.getElementById('app').innerHTML = tpl('tpl-lab');
+}
+
 async function adminTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
     b.classList.toggle('tab-active', (i === 0 && tab === 'orders') || (i === 1 && tab === 'users'));
@@ -403,7 +448,7 @@ async function adminTab(tab) {
 
   if (tab === 'orders') {
     try {
-      const res = await fetch(API_BASE + '/admin/orders', { credentials: 'include', headers: { 'X-Admin-Token': 'restaurant-admin-2024' } });
+      const res = await fetch(API_BASE + '/admin/orders', { credentials: 'include', headers: { 'X-Admin-Token': 'lab-admin-bypass-token' } });
       const orders = await res.json();
       el.innerHTML = `<div class="table-wrap"><table class="admin-table">
         <thead><tr><th>ID</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
@@ -418,7 +463,7 @@ async function adminTab(tab) {
     } catch { el.innerHTML = '<div class="empty-state">Failed to load</div>'; }
   } else {
     try {
-      const res = await fetch(API_BASE + '/admin/users', { credentials: 'include', headers: { 'X-Admin-Token': 'restaurant-admin-2024' } });
+      const res = await fetch(API_BASE + '/admin/users', { credentials: 'include', headers: { 'X-Admin-Token': 'lab-admin-bypass-token' } });
       const users = await res.json();
       el.innerHTML = `<div class="table-wrap"><table class="admin-table">
         <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
@@ -512,6 +557,15 @@ async function doLogout() {
   updateNavForGuest();
   showToast('Signed out successfully', 'info');
   navigate('home');
+}
+
+async function copyLabRequest(text, label = 'Request') {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(`${label} copied`, 'success');
+  } catch {
+    showToast('Clipboard access failed', 'error');
+  }
 }
 
 /* ======================== TOAST ======================== */

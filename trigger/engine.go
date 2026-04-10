@@ -24,16 +24,21 @@ import (
 // The "trigger" field (singular) is the legacy hardcoded payload string.
 // The "triggers" field (plural) is the new array of detection strategy objects.
 type VulnDef struct {
-	ID         string         `json:"id"`
-	Type       string         `json:"type"`
-	CWE        string         `json:"cwe"`
-	OWASP      string         `json:"owasp"`
-	Endpoint   string         `json:"endpoint"`
-	Param      string         `json:"param"`
-	Trigger    string         `json:"trigger"`           // legacy: hardcoded example payload
-	Triggers   []TriggerEntry `json:"triggers,omitempty"` // new: pattern-based strategies
-	Validation string         `json:"validation"`
-	Severity   string         `json:"severity"`
+	ID             string         `json:"id"`
+	Category       string         `json:"category,omitempty"`
+	Type           string         `json:"type"`
+	CWE            string         `json:"cwe"`
+	OWASP          string         `json:"owasp"`
+	Endpoint       string         `json:"endpoint"`
+	Param          string         `json:"param"`
+	Flow           string         `json:"flow,omitempty"`
+	FeatureFlag    string         `json:"feature_flag,omitempty"`
+	LabOnly        bool           `json:"lab_only,omitempty"`
+	DetectionHints []string       `json:"detection_hints,omitempty"`
+	Trigger        string         `json:"trigger"`            // legacy: hardcoded example payload
+	Triggers       []TriggerEntry `json:"triggers,omitempty"` // new: pattern-based strategies
+	Validation     string         `json:"validation"`
+	Severity       string         `json:"severity"`
 }
 
 // TriggerEntry defines a single detection strategy for a vulnerability.
@@ -95,8 +100,8 @@ type RespSnapshot struct {
 
 // EvalInput is the body accepted by POST /api/trigger/evaluate.
 type EvalInput struct {
-	VulnID   string      `json:"vuln_id"`
-	Request  ReqSnapshot `json:"request"`
+	VulnID   string       `json:"vuln_id"`
+	Request  ReqSnapshot  `json:"request"`
 	Response RespSnapshot `json:"response"`
 }
 
@@ -190,6 +195,15 @@ func GetVulnByID(id string) (VulnDef, bool) {
 // response snapshot. Any strategy that fires is included in EvalResult.Matches.
 // All matches are logged with the heuristic name for audit purposes.
 func Evaluate(input EvalInput, def VulnDef) EvalResult {
+	return evaluate(input, def, true)
+}
+
+// EvaluateQuiet is identical to Evaluate but suppresses per-match logs.
+func EvaluateQuiet(input EvalInput, def VulnDef) EvalResult {
+	return evaluate(input, def, false)
+}
+
+func evaluate(input EvalInput, def VulnDef, emitLogs bool) EvalResult {
 	result := EvalResult{
 		VulnID:      def.ID,
 		Matches:     []MatchResult{},
@@ -204,8 +218,10 @@ func Evaluate(input EvalInput, def VulnDef) EvalResult {
 			continue
 		}
 		if matched {
-			log.Printf("[trigger] MATCH vuln=%s strategy=%s heuristic=%s",
-				def.ID, entry.Strategy, entry.HeuristicName)
+			if emitLogs {
+				log.Printf("[trigger] MATCH vuln=%s strategy=%s heuristic=%s",
+					def.ID, entry.Strategy, entry.HeuristicName)
+			}
 			result.Matches = append(result.Matches, MatchResult{
 				Strategy:      entry.Strategy,
 				HeuristicName: entry.HeuristicName,

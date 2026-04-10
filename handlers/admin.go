@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"runtime"
+	"xvulnv2/config"
 	"xvulnv2/db"
 	"xvulnv2/middleware"
 )
@@ -14,7 +15,7 @@ func AdminGetOrders(w http.ResponseWriter, r *http.Request) {
 
 	// V07 — Broken Auth: checks header token instead of verified session role
 	token := r.Header.Get("X-Admin-Token")
-	if token != "restaurant-admin-2024" {
+	if token != config.LabAdminToken {
 		// fallback: check session but no role verification
 		sess, _ := middleware.GetSession(r)
 		if sess.Values["user_id"] == nil {
@@ -65,7 +66,7 @@ func AdminGetUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	token := r.Header.Get("X-Admin-Token")
-	if token != "restaurant-admin-2024" {
+	if token != config.LabAdminToken {
 		sess, _ := middleware.GetSession(r)
 		if sess.Values["user_id"] == nil {
 			w.WriteHeader(http.StatusForbidden)
@@ -116,11 +117,11 @@ func DebugInfo(w http.ResponseWriter, r *http.Request) {
 	db.DB.QueryRow("SELECT COUNT(*) FROM menu_items").Scan(&menuCount)
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"version":     "1.4.2",
-		"environment": "production",
+		"version":     config.AppVersion,
+		"environment": config.Get().Environment,
 		"db_path":     "./restaurant.db",
-		"session_key": "restaurant-secret-key-2024",
-		"admin_token": "restaurant-admin-2024",
+		"session_key": config.Get().SessionKey,
+		"admin_token": config.LabAdminToken,
 		"heap_alloc":  memStats.HeapAlloc,
 		"goroutines":  runtime.NumGoroutine(),
 		"users":       userCount,

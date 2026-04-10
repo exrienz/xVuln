@@ -3,6 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
+	"xvulnv2/config"
 	"xvulnv2/db"
 	"xvulnv2/middleware"
 	"xvulnv2/models"
@@ -73,7 +75,7 @@ func GetUserOrders(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(orders)
 }
 
-// POST /api/orders — V13: no CSRF validation
+// POST /api/orders — V12: no CSRF validation
 func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	userID, ok := middleware.GetSessionUserID(r)
@@ -83,7 +85,7 @@ func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// V13 — CSRF: no CSRF token checked
+	// V12 — CSRF: no CSRF token checked
 	var body struct {
 		Items []struct {
 			MenuItemID int `json:"menu_item_id"`
@@ -98,6 +100,7 @@ func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var total float64
+	inventoryRemaining := map[int]int{}
 	for _, item := range body.Items {
 		var price float64
 		err := db.DB.QueryRow("SELECT price FROM menu_items WHERE id=? AND available=1", item.MenuItemID).Scan(&price)
@@ -106,6 +109,35 @@ func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": "invalid menu item"})
 			return
 		}
+
+		if config.Get().EnableAdvancedVulns {
+			var stock int
+			err = db.DB.QueryRow("SELECT stock FROM inventory WHERE menu_item_id=?", item.MenuItemID).Scan(&stock)
+			if err != nil {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"error": "inventory unavailable for menu item"})
+				return
+			}
+			if stock < item.Quantity {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"error": "insufficient stock"})
+				return
+			}
+
+			// Untracked lab race condition: stock is read, delayed, then overwritten without a transaction.
+			nextStock := stock - item.Quantity
+			time.Sleep(175 * time.Millisecond)
+			if _, err = db.DB.Exec(
+				"UPDATE inventory SET stock=?, updated_at=CURRENT_TIMESTAMP WHERE menu_item_id=?",
+				nextStock, item.MenuItemID,
+			); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "failed to reserve stock"})
+				return
+			}
+			inventoryRemaining[item.MenuItemID] = nextStock
+		}
+
 		total += price * float64(item.Quantity)
 	}
 
@@ -126,8 +158,9 @@ func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":  "order placed successfully",
-		"order_id": orderID,
-		"total":    total,
+		"message":             "order placed successfully",
+		"order_id":            orderID,
+		"total":               total,
+		"inventory_remaining": inventoryRemaining,
 	})
 }
